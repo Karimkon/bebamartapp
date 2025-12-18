@@ -5,6 +5,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/user_model.dart';
+import '../../buyer/providers/wishlist_provider.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
@@ -44,8 +45,9 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final StorageService _storage;
   final ApiClient _api;
+  final Ref _ref;
   
-  AuthNotifier(this._storage, this._api) : super(const AuthState()) {
+  AuthNotifier(this._storage, this._api, this._ref) : super(const AuthState()) {
     _checkAuthStatus();
   }
   
@@ -79,6 +81,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             isLoading: false
           );
           print('🎉 User authenticated from stored token');
+          _loadWishlistAfterAuth();
         } catch (e) {
           print('❌ Error parsing stored user: $e');
           // Use cached data
@@ -176,6 +179,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
               isLoading: false
             );
             print('🎉 Login successful!');
+            _loadWishlistAfterAuth();
             return true;
           } catch (e) {
             print('❌ User parsing error: $e');
@@ -331,6 +335,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
               isLoading: false
             );
             print('🎉 Registration successful!');
+            _loadWishlistAfterAuth();
             return true;
           } catch (e) {
             print('❌ Error parsing registered user: $e');
@@ -360,6 +365,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
               isLoading: false,
             );
             print('⚠️ Using fallback user for registration');
+            _loadWishlistAfterAuth();
             return true;
           }
         } else {
@@ -389,6 +395,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             isLoading: false,
           );
           print('⚠️ Using fallback user - /api/user endpoint failed');
+          _loadWishlistAfterAuth();
           return true;
         }
       }
@@ -457,6 +464,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
     print('🧹 Clearing error');
     state = state.copyWith(error: null);
   }
+  
+  void _loadWishlistAfterAuth() {
+    try {
+      // Load wishlist after authentication
+      Future.microtask(() {
+        _ref.read(wishlistProvider.notifier).loadWishlist();
+      });
+    } catch (e) {
+      print('❌ Error loading wishlist after auth: $e');
+    }
+  }
 }
 
 final storageServiceProvider = Provider<StorageService>((ref) {
@@ -468,7 +486,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 });
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.watch(storageServiceProvider), ref.watch(apiClientProvider));
+  return AuthNotifier(ref.watch(storageServiceProvider), ref.watch(apiClientProvider), ref);
 });
 
 final currentUserProvider = Provider<UserModel?>((ref) => ref.watch(authProvider).user);

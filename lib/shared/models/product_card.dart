@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../features/buyer/providers/cart_provider.dart';
 import '../../features/buyer/providers/variation_provider.dart';
+import '../../features/auth/providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
-import 'variation_modal.dart';
 
 class ProductCard extends ConsumerStatefulWidget {
   final int id;
@@ -62,7 +63,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                   height: 150,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: AppColors.grayLight,
+                    color: AppColors.border,
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(12),
                       topRight: Radius.circular(12),
@@ -255,8 +256,8 @@ class _ProductCardState extends ConsumerState<ProductCard> {
       setState(() => _isAdding = true);
       try {
         await ref.read(cartProvider.notifier).addToCart(
-          listingId: widget.id,
-          quantity: 1,
+          widget.id,
+          1,
         );
         
         setState(() => _isAdding = false);

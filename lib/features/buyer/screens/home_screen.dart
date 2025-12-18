@@ -11,6 +11,8 @@ import '../providers/listing_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
+import '../providers/variation_provider.dart';
+import '../../../shared/models/variation_modal.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -37,14 +39,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     print('🔄 Loading initial data...');
     try {
       await Future.wait([
-        ref.read(allListingsProvider.future).catchError((e) {
-          print('❌ Error loading listings: $e');
-          return <ListingModel>[];
-        }),
-        ref.read(categoriesProvider.future).catchError((e) {
-          print('❌ Error loading categories: $e');
-          return <dynamic>[];
-        }),
+        ref.read(allListingsProvider.future),
+        ref.read(categoriesProvider.future),
       ]);
       print('✅ Initial data loaded');
     } catch (e) {
@@ -82,6 +78,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return;
     }
 
+    // Check if product has variations
+    try {
+      final variationState = ref.read(variationProvider(listingId));
+      
+      if (variationState.isLoading) {
+        // Load variations first
+        await ref.read(variationProvider(listingId).notifier).loadVariations(listingId);
+      }
+      
+      final hasVariations = ref.read(variationProvider(listingId)).hasVariations;
+      
+      if (hasVariations) {
+        // Show variation modal
+        final listing = ref.read(allListingsProvider).value?.firstWhere(
+          (l) => l.id == listingId,
+          orElse: () => throw Exception('Listing not found'),
+        );
+        
+        if (mounted) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) => VariationModal(
+              listingId: listingId,
+              productTitle: listing?.title ?? 'Product',
+              basePrice: listing?.price ?? 0,
+              onSuccess: () {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Added to cart successfully!'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              },
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      print('Error checking variations: $e');
+      // Continue with direct add to cart
+    }
+
+    // No variations - add directly to cart
     try {
       final success = await ref.read(cartProvider.notifier).addToCart(listingId, 1);
       
@@ -575,6 +618,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return GestureDetector(
       onTap: () => context.push('/product/${listing.id}'),
       child: Container(
+        constraints: const BoxConstraints(maxHeight: 280), // Add max height constraint
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(12),
@@ -590,8 +634,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Product Image
-            Expanded(
-              flex: 3,
+            SizedBox(
+              height: 150, // Fixed height instead of Expanded
+              width: double.infinity,
               child: Stack(
                 children: [
                   Container(
@@ -687,7 +732,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             // Product Info
             Expanded(
-              flex: 2,
               child: Padding(
                 padding: const EdgeInsets.all(10),
                 child: Column(

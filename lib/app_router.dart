@@ -17,6 +17,7 @@ import 'features/buyer/screens/categories_screen.dart';
 import 'features/buyer/screens/category_screen.dart'; // Add this import
 import 'features/buyer/screens/search_screen.dart';
 import 'features/buyer/screens/checkout_screen.dart';
+import 'features/buyer/screens/order_detail_screen.dart';
 import 'features/vendor/screens/vendor_shell.dart';
 import 'features/vendor/screens/vendor_dashboard_screen.dart';
 import 'features/vendor/screens/vendor_products_screen.dart';
@@ -174,6 +175,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/orders',
             builder: (_, __) => const OrdersScreen(),
+          ),
+          GoRoute(
+            path: '/orders/:id',
+            builder: (_, state) => OrderDetailScreen(
+              orderId: int.parse(state.pathParameters['id']!),
+            ),
           ),
           GoRoute(
             path: '/profile',

@@ -149,10 +149,19 @@ class OrderModel {
   bool get canBuyerConfirmDelivery => isCashOnDelivery && status == 'shipped' && deliveredAt == null;
   
   // Formatted prices
-  String get formattedSubtotal => 'UGX ${subtotal.toStringAsFixed(0)}';
-  String get formattedShipping => 'UGX ${shipping.toStringAsFixed(0)}';
-  String get formattedTaxes => 'UGX ${taxes.toStringAsFixed(0)}';
-  String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
+  String get subtotalFormatted => 'UGX ${subtotal.toStringAsFixed(0)}';
+  String get shippingFormatted => 'UGX ${shipping.toStringAsFixed(0)}';
+  String get taxesFormatted => 'UGX ${taxes.toStringAsFixed(0)}';
+  String get totalFormatted => 'UGX ${total.toStringAsFixed(0)}';
+  
+  // Computed properties
+  int get itemsCount => items.length;
+  String get createdAtFormatted => createdAt != null 
+      ? '${createdAt!.day.toString().padLeft(2, '0')}/${createdAt!.month.toString().padLeft(2, '0')}/${createdAt!.year}'
+      : 'N/A';
+  
+  // Vendor alias for consistency
+  VendorProfileModel? get vendor => vendorProfile;
   
   // Status display
   String get statusDisplay {
@@ -217,6 +226,12 @@ class OrderItemModel {
   String? get size => meta?['size'] as String?;
   String get formattedUnitPrice => 'UGX ${unitPrice.toStringAsFixed(0)}';
   String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
+  
+  // Image URL from listing
+  String? get imageUrl => listing?.images.isNotEmpty == true ? listing!.images.first.fullPath : null;
+  
+  // Title from listing
+  String get title => listing?.title ?? 'Product';
 }
 
 // Payment model

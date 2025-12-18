@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/variation_model.dart';
+import '../../../features/auth/providers/auth_provider.dart';
 
 class VariationState {
   final List<VariationModel> variations;

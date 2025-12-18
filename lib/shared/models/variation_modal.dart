@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../features/buyer/providers/variation_provider.dart';
 import '../../features/buyer/providers/cart_provider.dart';
 import '../../core/theme/app_theme.dart';
+import 'variation_model.dart';
 
 class VariationModal extends ConsumerStatefulWidget {
   final int listingId;
@@ -397,11 +399,13 @@ class _VariationModalState extends ConsumerState<VariationModal> {
       final cartNotifier = ref.read(cartProvider.notifier);
       
       await cartNotifier.addToCart(
-        listingId: widget.listingId,
-        quantity: quantity,
+        widget.listingId,
+        quantity,
         variantId: selectedVariant?.id,
-        color: selectedColor,
-        size: selectedSize,
+        attributes: {
+          if (selectedColor != null) 'color': selectedColor,
+          if (selectedSize != null) 'size': selectedSize,
+        },
       );
 
       setState(() => isAdding = false);

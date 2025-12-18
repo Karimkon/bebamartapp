@@ -7,14 +7,16 @@ import '../../../shared/models/listing_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
 // All listings provider - fetches all active listings
-// Update your allListingsProvider to add more debugging
 final allListingsProvider = FutureProvider<List<ListingModel>>((ref) async {
   print('🔄 allListingsProvider: Fetching all listings...');
   final api = ref.watch(apiClientProvider);
   
   try {
-    // Temporarily use featured listings endpoint to avoid the user relationship error
-    final response = await api.get(ApiEndpoints.featuredListings, queryParameters: {'per_page': 100});
+    // Use marketplace endpoint with category relationship loaded
+    final response = await api.get(ApiEndpoints.marketplace, queryParameters: {
+      'per_page': 100,
+      'with': 'category,vendor.user,images,variants'
+    });
     print('📦 allListingsProvider: Response status: ${response.statusCode}');
     print('📦 allListingsProvider: Response data: ${response.data}');
     print('📦 allListingsProvider: Response data type: ${response.data.runtimeType}');

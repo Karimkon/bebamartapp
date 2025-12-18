@@ -143,7 +143,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Total: ${order.formattedTotal}',
+                'Total: ${order.totalFormatted}',
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontSize: 18,
