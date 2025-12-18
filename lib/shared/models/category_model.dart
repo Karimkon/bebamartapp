@@ -66,7 +66,7 @@ class CategoryModel {
     }
     
     return CategoryModel(
-      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       name: json['name']?.toString() ?? 'Category',
       slug: json['slug']?.toString() ?? '',
       description: json['description']?.toString(),
@@ -79,7 +79,7 @@ class CategoryModel {
       parentId: json['parent_id'] is int 
           ? json['parent_id'] 
           : json['parent_id'] != null 
-            ? int.tryParse(json['parent_id'].toString()) 
+            ? int.tryParse(json['parent_id']?.toString() ?? '0') 
             : null,
       sortOrder: json['sort_order'] is int 
           ? json['sort_order'] 

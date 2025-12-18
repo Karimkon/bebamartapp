@@ -9,7 +9,7 @@ class OrderModel {
   final String orderNumber;
   final int buyerId;
   final int vendorProfileId;
-  final String status; // pending, payment_pending, paid, processing, shipped, delivered, cancelled
+  final String status;
   final DateTime? confirmedAt;
   final DateTime? processingAt;
   final DateTime? shippedAt;
@@ -65,56 +65,32 @@ class OrderModel {
   
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     return OrderModel(
-      id: json['id'] as int,
-      orderNumber: json['order_number'] as String,
-      buyerId: json['buyer_id'] as int,
-      vendorProfileId: json['vendor_profile_id'] as int,
-      status: json['status'] as String,
-      confirmedAt: json['confirmed_at'] != null
-          ? DateTime.parse(json['confirmed_at'])
-          : null,
-      processingAt: json['processing_at'] != null
-          ? DateTime.parse(json['processing_at'])
-          : null,
-      shippedAt: json['shipped_at'] != null
-          ? DateTime.parse(json['shipped_at'])
-          : null,
-      deliveredAt: json['delivered_at'] != null
-          ? DateTime.parse(json['delivered_at'])
-          : null,
-      cancelledAt: json['cancelled_at'] != null
-          ? DateTime.parse(json['cancelled_at'])
-          : null,
-      subtotal: (json['subtotal'] as num).toDouble(),
-      shipping: (json['shipping'] as num).toDouble(),
-      taxes: (json['taxes'] as num).toDouble(),
-      platformCommission: (json['platform_commission'] as num).toDouble(),
-      total: (json['total'] as num).toDouble(),
-      deliveryTimeDays: json['delivery_time_days'] as int?,
-      processingTimeHours: json['processing_time_hours'] as int?,
-      deliveryScore: (json['delivery_score'] as num?)?.toDouble(),
-      meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
-          : null,
-      buyer: json['buyer'] != null
-          ? UserModel.fromJson(json['buyer'])
-          : null,
-      vendorProfile: json['vendor_profile'] != null
-          ? VendorProfileModel.fromJson(json['vendor_profile'])
-          : null,
-      items: (json['items'] as List<dynamic>?)
-          ?.map((e) => OrderItemModel.fromJson(e))
-          .toList() ?? [],
-      payments: (json['payments'] as List<dynamic>?)
-          ?.map((e) => PaymentModel.fromJson(e))
-          .toList(),
-      escrow: json['escrow'] != null
-          ? EscrowModel.fromJson(json['escrow'])
-          : null,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      orderNumber: json['order_number']?.toString() ?? '',
+      buyerId: json['buyer_id'] is int ? json['buyer_id'] : int.tryParse(json['buyer_id'].toString()) ?? 0,
+      vendorProfileId: json['vendor_profile_id'] is int ? json['vendor_profile_id'] : int.tryParse(json['vendor_profile_id'].toString()) ?? 0,
+      status: json['status']?.toString() ?? 'pending',
+      confirmedAt: json['confirmed_at'] != null ? DateTime.tryParse(json['confirmed_at'].toString()) : null,
+      processingAt: json['processing_at'] != null ? DateTime.tryParse(json['processing_at'].toString()) : null,
+      shippedAt: json['shipped_at'] != null ? DateTime.tryParse(json['shipped_at'].toString()) : null,
+      deliveredAt: json['delivered_at'] != null ? DateTime.tryParse(json['delivered_at'].toString()) : null,
+      cancelledAt: json['cancelled_at'] != null ? DateTime.tryParse(json['cancelled_at'].toString()) : null,
+      subtotal: json['subtotal'] is num ? json['subtotal'].toDouble() : double.tryParse(json['subtotal'].toString()) ?? 0.0,
+      shipping: json['shipping'] is num ? json['shipping'].toDouble() : double.tryParse(json['shipping'].toString()) ?? 0.0,
+      taxes: json['taxes'] is num ? json['taxes'].toDouble() : double.tryParse(json['taxes'].toString()) ?? 0.0,
+      platformCommission: json['platform_commission'] is num ? json['platform_commission'].toDouble() : double.tryParse(json['platform_commission'].toString()) ?? 0.0,
+      total: json['total'] is num ? json['total'].toDouble() : double.tryParse(json['total'].toString()) ?? 0.0,
+      deliveryTimeDays: json['delivery_time_days'] is int ? json['delivery_time_days'] : int.tryParse(json['delivery_time_days']?.toString() ?? ''),
+      processingTimeHours: json['processing_time_hours'] is int ? json['processing_time_hours'] : int.tryParse(json['processing_time_hours']?.toString() ?? ''),
+      deliveryScore: json['delivery_score'] is num ? json['delivery_score'].toDouble() : double.tryParse(json['delivery_score']?.toString() ?? ''),
+      meta: json['meta'] is Map<String, dynamic> ? json['meta'] : (json['meta'] is String ? null : null),
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
+      updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null,
+      buyer: json['buyer'] != null && json['buyer'] is Map<String, dynamic> ? UserModel.fromJson(json['buyer']) : null,
+      vendorProfile: json['vendor_profile'] != null && json['vendor_profile'] is Map<String, dynamic> ? VendorProfileModel.fromJson(json['vendor_profile']) : null,
+      items: (json['items'] as List<dynamic>?)?.map((e) => OrderItemModel.fromJson(e)).toList() ?? [],
+      payments: (json['payments'] as List<dynamic>?)?.map((e) => PaymentModel.fromJson(e)).toList(),
+      escrow: json['escrow'] != null && json['escrow'] is Map<String, dynamic> ? EscrowModel.fromJson(json['escrow']) : null,
     );
   }
   
@@ -144,7 +120,7 @@ class OrderModel {
     };
   }
   
-  // Status check methods matching Laravel Order model
+  // Status check methods
   bool get isPending => status == 'pending';
   bool get isPaymentPending => status == 'payment_pending';
   bool get isPaid => status == 'paid';
@@ -153,17 +129,10 @@ class OrderModel {
   bool get isDelivered => status == 'delivered';
   bool get isCancelled => status == 'cancelled';
   
-  bool get canBeCancelled => 
-      ['pending', 'payment_pending'].contains(status) && cancelledAt == null;
-  
-  bool get canBeDelivered => 
-      ['processing', 'shipped'].contains(status) && deliveredAt == null;
-  
-  bool get canBeShipped => 
-      ['paid', 'processing'].contains(status) && shippedAt == null;
-  
-  bool get canBeProcessing => 
-      ['paid', 'confirmed'].contains(status) && processingAt == null;
+  bool get canBeCancelled => ['pending', 'payment_pending'].contains(status) && cancelledAt == null;
+  bool get canBeDelivered => ['processing', 'shipped'].contains(status) && deliveredAt == null;
+  bool get canBeShipped => ['paid', 'processing'].contains(status) && shippedAt == null;
+  bool get canBeProcessing => ['paid', 'confirmed'].contains(status) && processingAt == null;
   
   // Shipping address from meta
   ShippingAddressInfo? get shippingAddress {
@@ -176,12 +145,8 @@ class OrderModel {
   }
   
   String? get paymentMethod => meta?['payment_method'] as String?;
-  
   bool get isCashOnDelivery => paymentMethod == 'cash_on_delivery';
-  
-  // For COD orders, only buyer can confirm delivery
-  bool get canBuyerConfirmDelivery => 
-      isCashOnDelivery && status == 'shipped' && deliveredAt == null;
+  bool get canBuyerConfirmDelivery => isCashOnDelivery && status == 'shipped' && deliveredAt == null;
   
   // Formatted prices
   String get formattedSubtotal => 'UGX ${subtotal.toStringAsFixed(0)}';
@@ -199,61 +164,12 @@ class OrderModel {
       case 'shipped': return 'Shipped';
       case 'delivered': return 'Delivered';
       case 'cancelled': return 'Cancelled';
-      default: return status;
-    }
-  }
-  
-  // Delivery timeline matching Laravel getDeliveryTimeline()
-  List<DeliveryTimelineStep> get deliveryTimeline {
-    return [
-      DeliveryTimelineStep(
-        title: 'Order Placed',
-        date: createdAt,
-        completed: true,
-      ),
-      DeliveryTimelineStep(
-        title: 'Confirmed',
-        date: confirmedAt,
-        completed: confirmedAt != null,
-      ),
-      DeliveryTimelineStep(
-        title: 'Processing',
-        date: processingAt,
-        completed: processingAt != null,
-      ),
-      DeliveryTimelineStep(
-        title: 'Shipped',
-        date: shippedAt,
-        completed: shippedAt != null,
-      ),
-      DeliveryTimelineStep(
-        title: 'Delivered',
-        date: deliveredAt,
-        completed: deliveredAt != null,
-      ),
-    ];
-  }
-  
-  // Delivery performance badge matching Laravel getDeliveryPerformanceBadge()
-  DeliveryBadge? get deliveryPerformanceBadge {
-    if (deliveryScore == null) return null;
-    
-    final score = deliveryScore!;
-    if (score >= 90) {
-      return DeliveryBadge('Excellent Delivery', 'green', 'rocket');
-    } else if (score >= 80) {
-      return DeliveryBadge('Fast Delivery', 'blue', 'bolt');
-    } else if (score >= 70) {
-      return DeliveryBadge('Good Delivery', 'yellow', 'check_circle');
-    } else if (score >= 60) {
-      return DeliveryBadge('Average Delivery', 'orange', 'clock');
-    } else {
-      return DeliveryBadge('Slow Delivery', 'red', 'warning');
+      default: return status.toUpperCase();
     }
   }
 }
 
-// Order Item model mapped to order_items table
+// Order Item model
 class OrderItemModel {
   final int id;
   final int orderId;
@@ -265,8 +181,6 @@ class OrderItemModel {
   final Map<String, dynamic>? meta;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  
-  // Relationships
   final ListingModel? listing;
   
   OrderItemModel({
@@ -285,339 +199,36 @@ class OrderItemModel {
   
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
     return OrderItemModel(
-      id: json['id'] as int,
-      orderId: json['order_id'] as int,
-      listingId: json['listing_id'] as int,
-      variantId: json['variant_id'] as int?,
-      quantity: json['quantity'] as int,
-      unitPrice: (json['unit_price'] as num).toDouble(),
-      total: (json['total'] as num).toDouble(),
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      orderId: json['order_id'] is int ? json['order_id'] : int.tryParse(json['order_id'].toString()) ?? 0,
+      listingId: json['listing_id'] is int ? json['listing_id'] : int.tryParse(json['listing_id'].toString()) ?? 0,
+      variantId: json['variant_id'] is int ? json['variant_id'] : int.tryParse(json['variant_id']?.toString() ?? ''),
+      quantity: json['quantity'] is int ? json['quantity'] : int.tryParse(json['quantity'].toString()) ?? 0,
+      unitPrice: json['unit_price'] is num ? json['unit_price'].toDouble() : double.tryParse(json['unit_price'].toString()) ?? 0.0,
+      total: json['total'] is num ? json['total'].toDouble() : (json['line_total'] is num ? json['line_total'].toDouble() : double.tryParse(json['total']?.toString() ?? '') ?? 0.0),
       meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
-          : null,
-      listing: json['listing'] != null
-          ? ListingModel.fromJson(json['listing'])
-          : null,
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
+      updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null,
+      listing: json['listing'] != null && json['listing'] is Map<String, dynamic> ? ListingModel.fromJson(json['listing']) : null,
     );
   }
   
   String? get color => meta?['color'] as String?;
   String? get size => meta?['size'] as String?;
-  
   String get formattedUnitPrice => 'UGX ${unitPrice.toStringAsFixed(0)}';
   String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
 }
 
-// Payment model mapped to payments table
-class PaymentModel {
-  final int id;
-  final int orderId;
-  final String? paymentMethod;
-  final String? provider;
-  final String? transactionId;
-  final double amount;
-  final String status; // pending, completed, failed, refunded
-  final String? errorMessage;
-  final Map<String, dynamic>? meta;
-  final DateTime? completedAt;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
-  
-  PaymentModel({
-    required this.id,
-    required this.orderId,
-    this.paymentMethod,
-    this.provider,
-    this.transactionId,
-    required this.amount,
-    required this.status,
-    this.errorMessage,
-    this.meta,
-    this.completedAt,
-    this.createdAt,
-    this.updatedAt,
-  });
-  
-  factory PaymentModel.fromJson(Map<String, dynamic> json) {
-    return PaymentModel(
-      id: json['id'] as int,
-      orderId: json['order_id'] as int,
-      paymentMethod: json['payment_method'] as String?,
-      provider: json['provider'] as String?,
-      transactionId: json['transaction_id'] as String?,
-      amount: (json['amount'] as num).toDouble(),
-      status: json['status'] as String,
-      errorMessage: json['error_message'] as String?,
-      meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
-      completedAt: json['completed_at'] != null
-          ? DateTime.parse(json['completed_at'])
-          : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
-          : null,
-    );
-  }
-  
-  bool get isCompleted => status == 'completed';
-  bool get isPending => status == 'pending';
-  bool get isFailed => status == 'failed';
-}
-
-// Escrow model mapped to escrows table
-class EscrowModel {
-  final int id;
-  final int orderId;
-  final double amount;
-  final String status; // held, released, refunded
-  final DateTime? releaseAt;
-  final Map<String, dynamic>? meta;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
-  
-  EscrowModel({
-    required this.id,
-    required this.orderId,
-    required this.amount,
-    required this.status,
-    this.releaseAt,
-    this.meta,
-    this.createdAt,
-    this.updatedAt,
-  });
-  
-  factory EscrowModel.fromJson(Map<String, dynamic> json) {
-    return EscrowModel(
-      id: json['id'] as int,
-      orderId: json['order_id'] as int,
-      amount: (json['amount'] as num).toDouble(),
-      status: json['status'] as String,
-      releaseAt: json['release_at'] != null
-          ? DateTime.parse(json['release_at'])
-          : null,
-      meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
-          : null,
-    );
-  }
-  
-  bool get isHeld => status == 'held';
-  bool get isReleased => status == 'released';
-  bool get isRefunded => status == 'refunded';
-}
-
-// Helper classes
-class ShippingAddressInfo {
-  final String? label;
-  final String? recipientName;
-  final String? recipientPhone;
-  final String? addressLine1;
-  final String? addressLine2;
-  final String? city;
-  final String? stateRegion;
-  final String? postalCode;
-  final String? country;
-  final String? deliveryInstructions;
-  final String? fullAddress;
-  
-  ShippingAddressInfo({
-    this.label,
-    this.recipientName,
-    this.recipientPhone,
-    this.addressLine1,
-    this.addressLine2,
-    this.city,
-    this.stateRegion,
-    this.postalCode,
-    this.country,
-    this.deliveryInstructions,
-    this.fullAddress,
-  });
-  
-  factory ShippingAddressInfo.fromJson(Map<String, dynamic> json) {
-    return ShippingAddressInfo(
-      label: json['label'] as String?,
-      recipientName: json['recipient_name'] as String?,
-      recipientPhone: json['recipient_phone'] as String?,
-      addressLine1: json['address_line_1'] as String?,
-      addressLine2: json['address_line_2'] as String?,
-      city: json['city'] as String?,
-      stateRegion: json['state_region'] as String?,
-      postalCode: json['postal_code'] as String?,
-      country: json['country'] as String?,
-      deliveryInstructions: json['delivery_instructions'] as String?,
-      fullAddress: json['full_address'] as String?,
-    );
-  }
-}
-
-class DeliveryTimelineStep {
-  final String title;
-  final DateTime? date;
-  final bool completed;
-  
-  DeliveryTimelineStep({
-    required this.title,
-    this.date,
-    required this.completed,
-  });
-}
-
-class DeliveryBadge {
-  final String text;
-  final String color;
-  final String icon;
-  
-  DeliveryBadge(this.text, this.color, this.icon);
-}.toStringAsFixed(0)}';
-  String get formattedTaxes => 'UGX ${taxes.toStringAsFixed(0)}';
-  String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
-  
-  // Status display
-  String get statusDisplay {
-    switch (status) {
-      case 'pending':
-        return 'Pending';
-      case 'payment_pending':
-        return 'Payment Pending';
-      case 'paid':
-        return 'Paid';
-      case 'processing':
-        return 'Processing';
-      case 'shipped':
-        return 'Shipped';
-      case 'delivered':
-        return 'Delivered';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return status.toUpperCase();
-    }
-  }
-  
-  // Delivery timeline matching Laravel Order model
-  Map<String, Map<String, dynamic>> get deliveryTimeline {
-    return {
-      'ordered': {
-        'date': createdAt,
-        'completed': true,
-      },
-      'confirmed': {
-        'date': confirmedAt,
-        'completed': confirmedAt != null,
-      },
-      'processing': {
-        'date': processingAt,
-        'completed': processingAt != null,
-      },
-      'shipped': {
-        'date': shippedAt,
-        'completed': shippedAt != null,
-      },
-      'delivered': {
-        'date': deliveredAt,
-        'completed': deliveredAt != null,
-      },
-    };
-  }
-  
-  // Delivery performance badge matching Laravel
-  Map<String, dynamic>? get deliveryPerformanceBadge {
-    if (deliveryScore == null) return null;
-    
-    if (deliveryScore! >= 90) {
-      return {'color': 'green', 'text': 'Excellent Delivery', 'icon': 'rocket'};
-    } else if (deliveryScore! >= 80) {
-      return {'color': 'blue', 'text': 'Fast Delivery', 'icon': 'bolt'};
-    } else if (deliveryScore! >= 70) {
-      return {'color': 'yellow', 'text': 'Good Delivery', 'icon': 'check_circle'};
-    } else if (deliveryScore! >= 60) {
-      return {'color': 'orange', 'text': 'Average Delivery', 'icon': 'clock'};
-    } else {
-      return {'color': 'red', 'text': 'Slow Delivery', 'icon': 'warning'};
-    }
-  }
-}
-
-// OrderItem model mapped to order_items table
-class OrderItemModel {
-  final int id;
-  final int orderId;
-  final int listingId;
-  final int? variantId;
-  final int quantity;
-  final double unitPrice;
-  final double total;
-  final Map<String, dynamic>? meta;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
-  
-  // Relationship
-  final ListingModel? listing;
-  
-  OrderItemModel({
-    required this.id,
-    required this.orderId,
-    required this.listingId,
-    this.variantId,
-    required this.quantity,
-    required this.unitPrice,
-    required this.total,
-    this.meta,
-    this.createdAt,
-    this.updatedAt,
-    this.listing,
-  });
-  
-  factory OrderItemModel.fromJson(Map<String, dynamic> json) {
-    return OrderItemModel(
-      id: json['id'] as int,
-      orderId: json['order_id'] as int,
-      listingId: json['listing_id'] as int,
-      variantId: json['variant_id'] as int?,
-      quantity: json['quantity'] as int,
-      unitPrice: (json['unit_price'] as num).toDouble(),
-      total: (json['total'] as num).toDouble(),
-      meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
-          : null,
-      listing: json['listing'] != null
-          ? ListingModel.fromJson(json['listing'])
-          : null,
-    );
-  }
-  
-  String? get color => meta?['color'] as String?;
-  String? get size => meta?['size'] as String?;
-  
-  String get formattedUnitPrice => 'UGX ${unitPrice.toStringAsFixed(0)}';
-  String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
-}
-
-// Payment model mapped to payments table
+// Payment model
 class PaymentModel {
   final int id;
   final int orderId;
   final String? transactionId;
-  final String provider; // flutterwave, pesapal, wallet, cod
-  final String method; // card, mobile_money, bank_transfer, wallet, cash
+  final String provider;
+  final String method;
   final double amount;
   final String currency;
-  final String status; // pending, processing, completed, failed, refunded
+  final String status;
   final Map<String, dynamic>? meta;
   final DateTime? paidAt;
   final DateTime? createdAt;
@@ -640,24 +251,18 @@ class PaymentModel {
   
   factory PaymentModel.fromJson(Map<String, dynamic> json) {
     return PaymentModel(
-      id: json['id'] as int,
-      orderId: json['order_id'] as int,
-      transactionId: json['transaction_id'] as String?,
-      provider: json['provider'] as String,
-      method: json['method'] as String,
-      amount: (json['amount'] as num).toDouble(),
-      currency: json['currency'] as String? ?? 'UGX',
-      status: json['status'] as String,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      orderId: json['order_id'] is int ? json['order_id'] : int.tryParse(json['order_id'].toString()) ?? 0,
+      transactionId: json['transaction_id']?.toString(),
+      provider: json['provider']?.toString() ?? '',
+      method: json['method']?.toString() ?? json['payment_method']?.toString() ?? '',
+      amount: json['amount'] is num ? json['amount'].toDouble() : double.tryParse(json['amount'].toString()) ?? 0.0,
+      currency: json['currency']?.toString() ?? 'UGX',
+      status: json['status']?.toString() ?? 'pending',
       meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
-      paidAt: json['paid_at'] != null
-          ? DateTime.parse(json['paid_at'])
-          : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
-          : null,
+      paidAt: json['paid_at'] != null ? DateTime.tryParse(json['paid_at'].toString()) : null,
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
+      updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null,
     );
   }
   
@@ -666,12 +271,12 @@ class PaymentModel {
   bool get isFailed => status == 'failed';
 }
 
-// Escrow model mapped to escrows table
+// Escrow model
 class EscrowModel {
   final int id;
   final int orderId;
   final double amount;
-  final String status; // held, released, refunded
+  final String status;
   final DateTime? releaseAt;
   final Map<String, dynamic>? meta;
   final DateTime? createdAt;
@@ -690,20 +295,14 @@ class EscrowModel {
   
   factory EscrowModel.fromJson(Map<String, dynamic> json) {
     return EscrowModel(
-      id: json['id'] as int,
-      orderId: json['order_id'] as int,
-      amount: (json['amount'] as num).toDouble(),
-      status: json['status'] as String,
-      releaseAt: json['release_at'] != null
-          ? DateTime.parse(json['release_at'])
-          : null,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      orderId: json['order_id'] is int ? json['order_id'] : int.tryParse(json['order_id'].toString()) ?? 0,
+      amount: json['amount'] is num ? json['amount'].toDouble() : double.tryParse(json['amount'].toString()) ?? 0.0,
+      status: json['status']?.toString() ?? 'held',
+      releaseAt: json['release_at'] != null ? DateTime.tryParse(json['release_at'].toString()) : null,
       meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
-          : null,
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
+      updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null,
     );
   }
   
@@ -742,17 +341,17 @@ class ShippingAddressInfo {
   
   factory ShippingAddressInfo.fromJson(Map<String, dynamic> json) {
     return ShippingAddressInfo(
-      label: json['label'] as String?,
-      recipientName: json['recipient_name'] as String? ?? 'N/A',
-      recipientPhone: json['recipient_phone'] as String? ?? 'N/A',
-      addressLine1: json['address_line_1'] as String? ?? 'N/A',
-      addressLine2: json['address_line_2'] as String?,
-      city: json['city'] as String? ?? 'N/A',
-      stateRegion: json['state_region'] as String?,
-      postalCode: json['postal_code'] as String?,
-      country: json['country'] as String? ?? 'Uganda',
-      deliveryInstructions: json['delivery_instructions'] as String?,
-      fullAddress: json['full_address'] as String?,
+      label: json['label']?.toString(),
+      recipientName: json['recipient_name']?.toString() ?? 'N/A',
+      recipientPhone: json['recipient_phone']?.toString() ?? 'N/A',
+      addressLine1: json['address_line_1']?.toString() ?? 'N/A',
+      addressLine2: json['address_line_2']?.toString(),
+      city: json['city']?.toString() ?? 'N/A',
+      stateRegion: json['state_region']?.toString(),
+      postalCode: json['postal_code']?.toString(),
+      country: json['country']?.toString() ?? 'Uganda',
+      deliveryInstructions: json['delivery_instructions']?.toString(),
+      fullAddress: json['full_address']?.toString(),
     );
   }
   

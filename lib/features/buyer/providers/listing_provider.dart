@@ -6,7 +6,98 @@ import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/listing_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
-// Featured listings provider
+// All listings provider - fetches all active listings
+// Update your allListingsProvider to add more debugging
+final allListingsProvider = FutureProvider<List<ListingModel>>((ref) async {
+  print('🔄 allListingsProvider: Fetching all listings...');
+  final api = ref.watch(apiClientProvider);
+  
+  try {
+    // Temporarily use featured listings endpoint to avoid the user relationship error
+    final response = await api.get(ApiEndpoints.featuredListings, queryParameters: {'per_page': 100});
+    print('📦 allListingsProvider: Response status: ${response.statusCode}');
+    print('📦 allListingsProvider: Response data: ${response.data}');
+    print('📦 allListingsProvider: Response data type: ${response.data.runtimeType}');
+    
+    if (response.statusCode == 200) {
+      List<dynamic> listingsData = [];
+      
+      // Handle different response formats from Laravel API
+      if (response.data is Map) {
+        final dataMap = response.data as Map;
+        print('📦 Response is Map with keys: ${dataMap.keys.toList()}');
+        
+        if (dataMap['success'] == true && dataMap['data'] != null) {
+          final data = dataMap['data'];
+          print('📦 Found data in success.data, type: ${data.runtimeType}');
+          
+          if (data is List) {
+            listingsData = data;
+            print('✅ Found ${listingsData.length} listings in success.data (List)');
+          } else if (data is Map && data['data'] != null) {
+            listingsData = data['data'] as List? ?? [];
+            print('✅ Found ${listingsData.length} listings in paginated data');
+          }
+        } else if (dataMap['data'] != null && dataMap['data'] is List) {
+          listingsData = dataMap['data'] as List;
+          print('✅ Found ${listingsData.length} listings in data key');
+        }
+      } else if (response.data is List) {
+        listingsData = response.data;
+        print('✅ Response is direct list with ${listingsData.length} items');
+      }
+      
+      print('📋 Final listingsData: ${listingsData.length} items');
+      print('📋 First item sample: ${listingsData.isNotEmpty ? listingsData.first : "EMPTY"}');
+      
+      if (listingsData.isEmpty) {
+        print('⚠️ No listings found in response');
+        return [];
+      }
+      
+      try {
+        final listings = <ListingModel>[];
+        for (var i = 0; i < listingsData.length; i++) {
+          final item = listingsData[i];
+          if (item is Map<String, dynamic>) {
+            try {
+              final listing = ListingModel.fromJson(item);
+              if (listing.id != 0) {
+                listings.add(listing);
+              } else {
+                print('⚠️ Skipped listing $i: invalid ID');
+              }
+            } catch (e) {
+              print('⚠️ Error parsing individual listing $i: $e');
+              print('📋 Item data: $item');
+            }
+          } else {
+            print('⚠️ Item $i is not Map<String, dynamic>, type: ${item.runtimeType}');
+          }
+        }
+        
+        print('✅ Successfully parsed ${listings.length} listings');
+        return listings;
+      } catch (e, stack) {
+        print('❌ Error parsing listings: $e');
+        print('📋 Stack: $stack');
+        return [];
+      }
+    }
+    
+    print('❌ Failed to load listings: ${response.statusCode}');
+    return [];
+  } on DioException catch (e) {
+    print('❌ DioException in allListingsProvider (using featured endpoint): ${e.message}');
+    print('❌ Response data: ${e.response?.data}');
+    return [];
+  } catch (e) {
+    print('❌ Error in allListingsProvider: $e');
+    return [];
+  }
+});
+
+// Featured listings provider (kept for backward compatibility)
 final featuredListingsProvider = FutureProvider<List<ListingModel>>((ref) async {
   print('🔄 featuredListingsProvider: Fetching featured listings...');
   final api = ref.watch(apiClientProvider);
@@ -14,70 +105,76 @@ final featuredListingsProvider = FutureProvider<List<ListingModel>>((ref) async 
   try {
     final response = await api.get(ApiEndpoints.marketplace);
     print('📦 featuredListingsProvider: Response status: ${response.statusCode}');
+    print('📦 featuredListingsProvider: Response data type: ${response.data.runtimeType}');
     
     if (response.statusCode == 200) {
       List<dynamic> listingsData = [];
       
-      if (response.data is Map && (response.data as Map)['success'] == true) {
-        final listingsResponse = (response.data as Map)['listings'];
-        if (listingsResponse is Map && listingsResponse['data'] is List) {
-          listingsData = listingsResponse['data'];
-          print('✅ Found ${listingsData.length} listings in listings.data');
-        } else if (listingsResponse is List) {
-          listingsData = listingsResponse;
-          print('✅ Found ${listingsData.length} listings in listings (direct list)');
-        } else {
-          print('⚠️ Unexpected listings format: $listingsResponse');
-          return _getDummyListings();
+      // Handle different response formats from Laravel API
+      if (response.data is Map) {
+        final dataMap = response.data as Map;
+        
+        if (dataMap['success'] == true && dataMap['data'] != null) {
+          // Format: {success: true, data: [...]}
+          final data = dataMap['data'];
+          if (data is List) {
+            listingsData = data;
+            print('✅ Found ${listingsData.length} listings in success.data (List)');
+          } else if (data is Map && data['data'] != null) {
+            // Paginated: {success: true, data: {data: [...], meta: {...}}}
+            listingsData = data['data'] as List? ?? [];
+            print('✅ Found ${listingsData.length} listings in paginated data');
+          }
+        } else if (dataMap['data'] != null && dataMap['data'] is List) {
+          // Format: {data: [...]}
+          listingsData = dataMap['data'] as List;
+          print('✅ Found ${listingsData.length} listings in data key');
         }
       } else if (response.data is List) {
         listingsData = response.data;
         print('✅ Response is direct list with ${listingsData.length} items');
-      } else {
-        print('⚠️ Unexpected response format: ${response.data}');
-        return _getDummyListings();
       }
       
       if (listingsData.isEmpty) {
-        print('⚠️ No featured listings found, returning dummy data');
-        return _getDummyListings();
+        print('⚠️ No listings found in response, checking for empty state');
+        // Return empty list - no dummy data
+        return [];
       }
       
       try {
-        final listings = listingsData.map<ListingModel>((item) {
-          if (item is! Map<String, dynamic>) {
-            print('⚠️ Item is not Map<String, dynamic>, skipping');
-            return ListingModel(
-              id: 0,
-              vendorProfileId: 1,
-              title: 'Invalid Item',
-              price: 0,
-            );
+        final listings = <ListingModel>[];
+        for (var item in listingsData) {
+          if (item is Map<String, dynamic>) {
+            try {
+              final listing = ListingModel.fromJson(item);
+              if (listing.id != 0) {
+                listings.add(listing);
+              }
+            } catch (e) {
+              print('⚠️ Error parsing individual listing: $e');
+              // Continue with other listings
+            }
           }
-          return ListingModel.fromJson(item);
-        }).where((listing) => listing.id != 0).toList();
+        }
         
         print('✅ Successfully parsed ${listings.length} featured listings');
-        if (listings.isEmpty) {
-          print('⚠️ No valid listings after parsing, returning dummy data');
-          return _getDummyListings();
-        }
         return listings;
       } catch (e, stack) {
         print('❌ Error parsing listings: $e');
         print('📋 Stack: $stack');
-        return _getDummyListings();
+        return [];
       }
     }
     
     print('❌ Failed to load featured listings: ${response.statusCode}');
-    return _getDummyListings();
+    return [];
   } on DioException catch (e) {
     print('❌ DioException in featuredListingsProvider: ${e.message}');
-    return _getDummyListings();
+    print('❌ Response data: ${e.response?.data}');
+    return [];
   } catch (e) {
     print('❌ Error in featuredListingsProvider: $e');
-    return _getDummyListings();
+    return [];
   }
 });
 
@@ -264,40 +361,4 @@ final searchProvider = StateNotifierProvider<SearchNotifier, SearchState>((ref) 
   return SearchNotifier(api);
 });
 
-// Dummy data for testing
-List<ListingModel> _getDummyListings() {
-  return [
-    _getDummyListing(),
-    _getDummyListing(),
-    _getDummyListing(),
-  ];
-}
-
-ListingModel _getDummyListing() {
-  return ListingModel(
-    id: 1,
-    vendorProfileId: 1,
-    title: 'Sample Product',
-    description: 'This is a sample product for testing',
-    price: 100.0,
-    stock: 10,
-    isActive: true,
-    viewCount: 0,
-    clickCount: 0,
-    wishlistCount: 0,
-    cartAddCount: 0,
-    purchaseCount: 0,
-    shareCount: 0,
-    images: [
-      ListingImageModel(
-        id: 1,
-        listingId: 1,
-        path: 'sample-image.jpg',
-      ),
-    ],
-    variants: [],
-    vendor: null,
-    category: null,
-    reviews: [],
-  );
-}
+// No more dummy data - return empty lists when no data available

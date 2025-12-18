@@ -1,7 +1,6 @@
 // lib/features/buyer/providers/category_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/category_model.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -13,39 +12,61 @@ final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) async {
   try {
     final response = await api.get(ApiEndpoints.categories);
     print('📦 categoriesProvider: Response status: ${response.statusCode}');
+    print('📦 categoriesProvider: Response data type: ${response.data.runtimeType}');
     
     if (response.statusCode == 200) {
       List<dynamic> categoriesData = [];
       
-      if (response.data is Map && (response.data as Map)['success'] == true) {
-        categoriesData = (response.data as Map)['data'] ?? [];
-        print('✅ Found ${categoriesData.length} categories in data key');
+      // Handle different response formats
+      if (response.data is Map) {
+        final dataMap = response.data as Map;
+        
+        if (dataMap['success'] == true && dataMap['data'] != null) {
+          // Format: {success: true, data: [...]}
+          final data = dataMap['data'];
+          if (data is List) {
+            categoriesData = data;
+            print('✅ Found ${categoriesData.length} categories in success.data');
+          }
+        } else if (dataMap['data'] != null && dataMap['data'] is List) {
+          // Format: {data: [...]}
+          categoriesData = dataMap['data'] as List;
+          print('✅ Found ${categoriesData.length} categories in data key');
+        }
       } else if (response.data is List) {
         categoriesData = response.data;
-        print('✅ Response is direct list with ${categoriesData.length} items');
-      } else {
-        print('⚠️ Unexpected response format: ${response.data}');
-        return [];
+        print('✅ Response is direct list with ${categoriesData.length} categories');
       }
       
       if (categoriesData.isEmpty) {
-        print('⚠️ No categories found');
+        print('⚠️ No categories found in response');
         return [];
       }
       
       try {
-        final categories = categoriesData.map<CategoryModel>((item) {
-          return CategoryModel(
-            id: item['id'] ?? 0,
-            name: item['name'] ?? 'Unknown Category',
-            slug: item['slug'] ?? 'unknown',
-            description: item['description'] ?? '',
-            icon: item['icon'] ?? 'category',
-            image: item['image'],
-            isActive: item['is_active'] ?? true,
-            listingsCount: item['listings_count'] ?? 0,
-          );
-        }).where((category) => category.id != 0).toList();
+        final categories = <CategoryModel>[];
+        for (var item in categoriesData) {
+          if (item is Map<String, dynamic>) {
+            try {
+              final category = CategoryModel(
+                id: item['id'] is int ? item['id'] : int.tryParse(item['id'].toString()) ?? 0,
+                name: item['name']?.toString() ?? 'Unknown Category',
+                slug: item['slug']?.toString() ?? 'unknown',
+                description: item['description']?.toString(),
+                icon: item['icon']?.toString() ?? 'category',
+                image: item['image']?.toString(),
+                isActive: item['is_active'] ?? true,
+                listingsCount: item['listings_count'] is int ? item['listings_count'] : null,
+                parentId: item['parent_id'] is int ? item['parent_id'] : null,
+              );
+              if (category.id != 0) {
+                categories.add(category);
+              }
+            } catch (e) {
+              print('⚠️ Error parsing individual category: $e');
+            }
+          }
+        }
         
         print('✅ Successfully parsed ${categories.length} categories');
         return categories;
@@ -59,6 +80,7 @@ final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) async {
     return [];
   } on DioException catch (e) {
     print('❌ DioException in categoriesProvider: ${e.message}');
+    print('❌ Response data: ${e.response?.data}');
     return [];
   } catch (e) {
     print('❌ Error in categoriesProvider: $e');

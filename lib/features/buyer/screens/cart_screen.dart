@@ -75,7 +75,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               Container(
                 width: 120,
                 height: 120,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.border,
                   shape: BoxShape.circle,
                 ),

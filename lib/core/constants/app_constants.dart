@@ -20,8 +20,8 @@ class AppConstants {
   static const String storageUrl = '$baseUrl/storage';
   
   // Timeouts
-  static const int connectionTimeout = 60000;
-  static const int receiveTimeout = 60000;
+  static const int connectionTimeout = 120000; // Increased to 2 minutes
+  static const int receiveTimeout = 120000;
   
   // Pagination
   static const int defaultPageSize = 20;
@@ -87,97 +87,97 @@ class AppConstants {
 // API Endpoints - ALL use /api prefix for mobile app
 class ApiEndpoints {
   // Auth
-  static const String login = '/api/v1/login';
-  static const String register = '/api/v1/register';
-  static const String logout = '/api/v1/logout';
+  static const String login = '/api/login';
+  static const String register = '/api/register';
+  static const String logout = '/api/logout';
   
   // User
-  static const String user = '/api/v1/user';
-  static const String updateProfile = '/api/v1/user/profile';
-  static const String changePassword = '/api/v1/user/change-password';
+  static const String user = '/api/user';
+  static const String updateProfile = '/api/user/profile';
+  static const String changePassword = '/api/user/change-password';
   
   // Categories
-  static const String categories = '/api/v1/categories';
-  static String categoryDetail(String slug) => '/api/v1/categories/$slug';
+  static const String categories = '/api/categories';
+  static String categoryDetail(String slug) => '/api/categories/$slug';
   
   // Marketplace/Listings
-  static const String marketplace = '/api/v1/marketplace';
-  static String listingDetail(int id) => '/api/v1/marketplace/$id';
-  static String listingVariations(int id) => '/api/v1/listings/$id/variations';
-  static String listingCheckVariations(int id) => '/api/v1/listings/$id/check-variations';
-  static const String featuredListings = '/api/v1/featured-listings';
+  static const String marketplace = '/api/marketplace';
+  static String listingDetail(int id) => '/api/marketplace/$id';
+  static String listingVariations(int id) => '/api/listings/$id/variations';
+  static String listingCheckVariations(int id) => '/api/listings/$id/check-variations';
+  static const String featuredListings = '/api/featured-listings';
   
   // Cart
-  static const String cart = '/api/v1/cart';
-  static String cartAdd(int listingId) => '/api/v1/cart/add/$listingId';
-  static String cartUpdate(int listingId) => '/api/v1/cart/update/$listingId';
-  static String cartRemove(int listingId) => '/api/v1/cart/remove/$listingId';
-  static const String cartClear = '/api/v1/cart/clear';
-  static const String cartSummary = '/api/v1/cart/summary';
+  static const String cart = '/api/cart';
+  static String cartAdd(int listingId) => '/api/cart/add/$listingId';
+  static String cartUpdate(int listingId) => '/api/cart/update/$listingId';
+  static String cartRemove(int listingId) => '/api/cart/remove/$listingId';
+  static const String cartClear = '/api/cart/clear';
+  static const String cartSummary = '/api/cart/summary';
   
   // Wishlist
-  static const String wishlist = '/api/v1/wishlist';
-  static String wishlistAdd(int listingId) => '/api/v1/wishlist/add/$listingId';
-  static String wishlistRemove(int listingId) => '/api/v1/wishlist/remove/$listingId';
-  static String wishlistToggle(int listingId) => '/api/v1/wishlist/toggle/$listingId';
-  static String wishlistMoveToCart(int listingId) => '/api/v1/wishlist/move-to-cart/$listingId';
-  static const String wishlistCount = '/api/v1/wishlist/count';
+  static const String wishlist = '/api/wishlist';
+  static String wishlistAdd(int listingId) => '/api/wishlist/add/$listingId';
+  static String wishlistRemove(int listingId) => '/api/wishlist/remove/$listingId';
+  static String wishlistToggle(int listingId) => '/api/wishlist/toggle/$listingId';
+  static String wishlistMoveToCart(int listingId) => '/api/wishlist/move-to-cart/$listingId';
+  static const String wishlistCount = '/api/wishlist/count';
   
   // Orders
-  static const String orders = '/api/v1/orders';
-  static const String checkout = '/api/v1/orders/checkout';
-  static const String placeOrder = '/api/v1/orders/place-order';
-  static String orderDetail(int id) => '/api/v1/orders/$id';
-  static String orderPayment(int id) => '/api/v1/orders/$id/payment';
-  static String orderPayWithWallet(int id) => '/api/v1/orders/$id/pay-with-wallet';
-  static String orderCancel(int id) => '/api/v1/orders/$id/cancel';
-  static String orderConfirmDelivery(int id) => '/api/v1/orders/$id/confirm-delivery';
+  static const String orders = '/api/orders';
+  static const String checkout = '/api/orders/checkout';
+  static const String placeOrder = '/api/orders/place-order';
+  static String orderDetail(int id) => '/api/orders/$id';
+  static String orderPayment(int id) => '/api/orders/$id/payment';
+  static String orderPayWithWallet(int id) => '/api/orders/$id/pay-with-wallet';
+  static String orderCancel(int id) => '/api/orders/$id/cancel';
+  static String orderConfirmDelivery(int id) => '/api/orders/$id/confirm-delivery';
   
   // Shipping Addresses
-  static const String addresses = '/api/v1/addresses';
-  static String addressDetail(int id) => '/api/v1/addresses/$id';
-  static String addressSetDefault(int id) => '/api/v1/addresses/$id/set-default';
+  static const String addresses = '/api/addresses';
+  static String addressDetail(int id) => '/api/addresses/$id';
+  static String addressSetDefault(int id) => '/api/addresses/$id/set-default';
   
   // Wallet
-  static const String wallet = '/api/v1/wallet';
-  static const String walletDeposit = '/api/v1/wallet/deposit';
-  static const String walletWithdraw = '/api/v1/wallet/withdraw';
-  static const String walletTransactions = '/api/v1/wallet/transactions';
-  static const String walletBalance = '/api/v1/wallet/balance';
+  static const String wallet = '/api/wallet';
+  static const String walletDeposit = '/api/wallet/deposit';
+  static const String walletWithdraw = '/api/wallet/withdraw';
+  static const String walletTransactions = '/api/wallet/transactions';
+  static const String walletBalance = '/api/wallet/balance';
   
   // Disputes
-  static const String disputes = '/api/v1/disputes';
-  static String disputeCreate(int orderId) => '/api/v1/disputes/create/$orderId';
-  static String disputeStore(int orderId) => '/api/v1/disputes/store/$orderId';
-  static String disputeDetail(int id) => '/api/v1/disputes/$id';
+  static const String disputes = '/api/disputes';
+  static String disputeCreate(int orderId) => '/api/disputes/create/$orderId';
+  static String disputeStore(int orderId) => '/api/disputes/store/$orderId';
+  static String disputeDetail(int id) => '/api/disputes/$id';
   
   // Reviews
-  static const String reviews = '/api/v1/reviews';
-  static const String reviewCreate = '/api/v1/reviews/create';
-  static String reviewEdit(int id) => '/api/v1/reviews/$id/edit';
-  static String reviewDelete(int id) => '/api/v1/reviews/$id';
-  static String reviewVote(int id) => '/api/v1/reviews/$id/vote';
-  static String listingReviews(int listingId) => '/api/v1/listings/$listingId/reviews';
+  static const String reviews = '/api/reviews';
+  static const String reviewCreate = '/api/reviews/create';
+  static String reviewEdit(int id) => '/api/reviews/$id/edit';
+  static String reviewDelete(int id) => '/api/reviews/$id';
+  static String reviewVote(int id) => '/api/reviews/$id/vote';
+  static String listingReviews(int listingId) => '/api/listings/$listingId/reviews';
   
   // Chat
-  static const String chat = '/api/v1/chat';
-  static const String chatStart = '/api/v1/chat/start';
-  static const String chatUnreadCount = '/api/v1/chat/unread-count';
-  static String chatConversation(int id) => '/api/v1/chat/$id';
-  static String chatSend(int id) => '/api/v1/chat/$id/send';
-  static String chatNewMessages(int id) => '/api/v1/chat/$id/new-messages';
-  static String chatArchive(int id) => '/api/v1/chat/$id/archive';
+  static const String chat = '/api/chat';
+  static const String chatStart = '/api/chat/start';
+  static const String chatUnreadCount = '/api/chat/unread-count';
+  static String chatConversation(int id) => '/api/chat/$id';
+  static String chatSend(int id) => '/api/chat/$id/send';
+  static String chatNewMessages(int id) => '/api/chat/$id/new-messages';
+  static String chatArchive(int id) => '/api/chat/$id/archive';
   
   // Vendor Dashboard
-  static const String vendorDashboard = '/api/v1/vendor/dashboard';
+  static const String vendorDashboard = '/api/vendor/dashboard';
   
   // Vendor Listings
-  static const String vendorListings = '/api/v1/vendor/listings';
-  static const String vendorListingsCreate = '/api/v1/vendor/listings/create';
-  static String vendorListingEdit(int id) => '/api/v1/vendor/listings/$id/edit';
-  static String vendorListingUpdate(int id) => '/api/v1/vendor/listings/$id';
-  static String vendorListingDelete(int id) => '/api/v1/vendor/listings/$id';
-  static String vendorListingToggle(int id) => '/api/v1/vendor/listings/$id/toggle-status';
+  static const String vendorListings = '/api/vendor/listings';
+  static const String vendorListingsCreate = '/api/vendor/listings/create';
+  static String vendorListingEdit(int id) => '/api/vendor/listings/$id/edit';
+  static String vendorListingUpdate(int id) => '/api/vendor/listings/$id';
+  static String vendorListingDelete(int id) => '/api/vendor/listings/$id';
+  static String vendorListingToggle(int id) => '/api/vendor/listings/$id/toggle-status';
   
   // Vendor Orders
   static const String vendorOrders = '/api/vendor/orders';

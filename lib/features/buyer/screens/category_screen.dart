@@ -79,21 +79,20 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
               context.push('/search');
             },
           ),
-          if (user != null)
-            IconButton(
-              icon: Badge(
-                label: Consumer(
-                  builder: (context, ref, _) {
-                    final cartCount = ref.watch(cartCountProvider);
-                    return Text(cartCount.toString());
-                  },
-                ),
-                child: const Icon(Icons.shopping_cart),
+          IconButton(
+            icon: Badge(
+              label: Consumer(
+                builder: (context, ref, _) {
+                  final cartCount = ref.watch(cartCountProvider);
+                  return Text(cartCount.toString());
+                },
               ),
-              onPressed: () {
-                context.push('/cart');
-              },
+              child: const Icon(Icons.shopping_cart),
             ),
+            onPressed: () {
+              context.push('/cart');
+            },
+          ),
         ],
       ),
       body: categoryAsync.when(
@@ -287,7 +286,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
             ],
           ),
           
-          if (category.children != null && category.children!.isNotEmpty)
+          if (category.children.isNotEmpty)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -303,9 +302,9 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                   height: 80,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
-                    itemCount: category.children!.length,
+                    itemCount: category.children.length,
                     itemBuilder: (context, index) {
-                      final subcategory = category.children![index];
+                      final subcategory = category.children[index];
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: InkWell(

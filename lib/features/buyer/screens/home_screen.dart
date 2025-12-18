@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/listing_model.dart';
+import '../../../shared/models/category_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/listing_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/cart_provider.dart';
+import '../providers/wishlist_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -19,13 +21,13 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _searchController = TextEditingController();
+  String? _selectedCategorySlug;
 
   @override
   void initState() {
     super.initState();
     print('🏠 HomeScreen initState');
     
-    // Pre-fetch data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitialData();
     });
@@ -35,7 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     print('🔄 Loading initial data...');
     try {
       await Future.wait([
-        ref.read(featuredListingsProvider.future).catchError((e) {
+        ref.read(allListingsProvider.future).catchError((e) {
           print('❌ Error loading listings: $e');
           return <ListingModel>[];
         }),
@@ -53,8 +55,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _handleRefresh() async {
     print('🔄 Refreshing home screen...');
     
-    ref.invalidate(featuredListingsProvider);
+    ref.invalidate(allListingsProvider);
     ref.invalidate(categoriesProvider);
+    setState(() {
+      _selectedCategorySlug = null;
+    });
     
     await _loadInitialData();
   }
@@ -62,7 +67,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _handleAddToCart(int listingId) async {
     final user = ref.read(currentUserProvider);
     
-    // Check if user is logged in
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -103,6 +107,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Future<void> _handleToggleWishlist(int listingId) async {
+    final user = ref.read(currentUserProvider);
+    
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please login to add to wishlist'),
+          backgroundColor: AppColors.warning,
+          action: SnackBarAction(
+            label: 'Login',
+            textColor: AppColors.white,
+            onPressed: () => context.push('/login'),
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final success = await ref.read(wishlistProvider.notifier).toggleWishlist(listingId);
+      
+      if (mounted && success) {
+        final isNowWishlisted = ref.read(wishlistProvider).isWishlisted(listingId);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isNowWishlisted ? 'Added to wishlist' : 'Removed from wishlist'),
+            backgroundColor: isNowWishlisted ? AppColors.success : AppColors.textSecondary,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update wishlist: $e'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -112,7 +160,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-    final listingsAsync = ref.watch(featuredListingsProvider);
+    final listingsAsync = ref.watch(allListingsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
     final cartState = ref.watch(cartProvider);
 
@@ -123,78 +171,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onRefresh: _handleRefresh,
           child: CustomScrollView(
             slivers: [
-              // App Bar
-              SliverAppBar(
-                floating: true,
-                backgroundColor: AppColors.white,
-                title: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.shopping_bag_rounded,
-                        color: AppColors.white,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'BebaMart',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.chat_outlined),
-                    onPressed: () => context.push('/chat'),
-                  ),
-                  // Cart Button with Badge
-                  Stack(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.shopping_cart_outlined),
-                        onPressed: () => context.push('/cart'),
-                      ),
-                      if (cartState.itemCount > 0)
-                        Positioned(
-                          right: 6,
-                          top: 6,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: const BoxDecoration(
-                              color: AppColors.error,
-                              shape: BoxShape.circle,
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            child: Text(
-                              '${cartState.itemCount}',
-                              style: const TextStyle(
-                                color: AppColors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-
               // Search Bar
               SliverToBoxAdapter(
                 child: Padding(
@@ -208,14 +184,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppColors.border),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.search, color: AppColors.textTertiary),
-                          SizedBox(width: 12),
+                          Icon(Icons.search, color: AppColors.textSecondary),
+                          const SizedBox(width: 12),
                           Text(
                             'Search products...',
                             style: TextStyle(
-                              color: AppColors.textTertiary,
+                              color: AppColors.textSecondary,
                               fontSize: 16,
                             ),
                           ),
@@ -233,7 +209,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      gradient: AppColors.primaryGradient,
+                      gradient: LinearGradient(
+                        colors: [AppColors.primary, AppColors.primaryDark],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
@@ -243,40 +223,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                user != null ? 'Hello, ${user.displayName}!' : 'Welcome to BebaMart!',
+                                'Hello, ${user?.displayName ?? 'Guest'}!',
                                 style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
                                   color: AppColors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               const Text(
                                 'Discover amazing products',
-                                style: TextStyle(color: AppColors.textLight),
-                              ),
-                              if (user == null) ...[
-                                const SizedBox(height: 12),
-                                ElevatedButton(
-                                  onPressed: () => context.push('/login'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.white,
-                                    foregroundColor: AppColors.primary,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 10,
-                                    ),
-                                  ),
-                                  child: const Text('Sign In'),
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
                                 ),
-                              ],
+                              ),
                             ],
                           ),
                         ),
-                        const Icon(
-                          Icons.shopping_cart_rounded,
-                          size: 64,
-                          color: Colors.white24,
+                        Stack(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white70, size: 32),
+                              onPressed: () => context.push('/cart'),
+                            ),
+                            if (cartState.itemCount > 0)
+                              Positioned(
+                                right: 4,
+                                top: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.error,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Text(
+                                    '${cartState.itemCount}',
+                                    style: const TextStyle(
+                                      color: AppColors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ],
                     ),
@@ -284,14 +275,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
 
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
               // Categories Section
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
@@ -299,6 +292,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           TextButton(
@@ -307,110 +301,78 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      categoriesAsync.when(
-                        data: (categories) {
-                          if (categories.isEmpty) {
-                            return const SizedBox(
-                              height: 100,
-                              child: Center(
-                                child: Text(
-                                  'No categories available',
-                                  style: TextStyle(color: AppColors.textSecondary),
-                                ),
-                              ),
-                            );
-                          }
-                          
-                          return SizedBox(
-                            height: 100,
-                            child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: categories.take(8).length,
-                              itemBuilder: (context, index) {
-                                final category = categories[index];
-                                return GestureDetector(
-                                  onTap: () => context.push('/category/${category.slug}'),
-                                  child: Container(
-                                    width: 80,
-                                    margin: const EdgeInsets.only(right: 12),
-                                    child: Column(
-                                      children: [
-                                        Container(
-                                          width: 60,
-                                          height: 60,
-                                          decoration: BoxDecoration(
-                                            color: AppColors.categoryColors[index % AppColors.categoryColors.length].withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(16),
-                                          ),
-                                          child: Icon(
-                                            Icons.category,
-                                            color: AppColors.categoryColors[index % AppColors.categoryColors.length],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          category.name,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        },
-                        loading: () => _buildCategorySkeleton(),
-                        error: (error, _) {
-                          print('❌ Error loading categories: $error');
-                          return const SizedBox(
-                            height: 100,
-                            child: Center(
-                              child: Text(
-                                'Failed to load categories',
-                                style: TextStyle(color: AppColors.error),
-                              ),
-                            ),
-                          );
-                        },
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 100,
+                      child: categoriesAsync.when(
+                        data: (categories) => ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          itemCount: categories.length,
+                          itemBuilder: (context, index) {
+                            final category = categories[index];
+                            final isSelected = _selectedCategorySlug == category.slug;
+                            return _buildCategoryItem(category, isSelected);
+                          },
+                        ),
+                        loading: () => const Center(child: CircularProgressIndicator()),
+                        error: (e, _) => Center(child: Text('Error: $e')),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+              // All Products Section Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _selectedCategorySlug != null ? 'Filtered Products' : 'All Products',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      if (_selectedCategorySlug != null)
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedCategorySlug = null;
+                            });
+                          },
+                          child: const Text('Clear Filter'),
+                        ),
                     ],
                   ),
                 ),
               ),
 
-              // Featured Products Header
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'Featured Products',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
               // Products Grid
               listingsAsync.when(
                 data: (listings) {
-                  if (listings.isEmpty) {
+                  // Filter by category if selected
+                  final filteredListings = _selectedCategorySlug != null
+                      ? listings.where((l) => l.category?.slug == _selectedCategorySlug).toList()
+                      : listings;
+
+                  if (filteredListings.isEmpty) {
                     return SliverToBoxAdapter(
-                      child: _buildEmptyProducts(),
+                      child: _buildEmptyState(),
                     );
                   }
 
                   return SliverPadding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     sliver: SliverGrid(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
@@ -419,40 +381,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         mainAxisSpacing: 12,
                       ),
                       delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final listing = listings[index];
-                          return _buildProductCard(listing);
-                        },
-                        childCount: listings.length,
+                        (context, index) => _buildProductCard(filteredListings[index]),
+                        childCount: filteredListings.length,
                       ),
                     ),
                   );
                 },
-                loading: () => SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.65,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildProductSkeleton(),
-                      childCount: 4,
+                loading: () => const SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: CircularProgressIndicator(),
                     ),
                   ),
                 ),
-                error: (error, _) {
-                  print('❌ Error loading featured listings: $error');
-                  return SliverToBoxAdapter(
-                    child: _buildErrorProducts(error.toString()),
-                  );
-                },
+                error: (error, _) => SliverToBoxAdapter(
+                  child: _buildErrorProducts(error.toString()),
+                ),
               ),
 
-              // Bottom padding
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
         ),
@@ -460,89 +408,130 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildCategorySkeleton() {
-    return SizedBox(
-      height: 100,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: 8,
-        itemBuilder: (context, index) {
-          return Container(
-            width: 80,
-            margin: const EdgeInsets.only(right: 12),
-            child: Column(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildProductSkeleton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Container(
+  Widget _buildCategoryItem(CategoryModel category, bool isSelected) {
+    // Generate color based on category index
+    final colors = [
+      const Color(0xFFE3F2FD),
+      const Color(0xFFFCE4EC),
+      const Color(0xFFFFF3E0),
+      const Color(0xFFE8F5E9),
+      const Color(0xFFF3E5F5),
+      const Color(0xFFE0F7FA),
+    ];
+    final iconColors = [
+      const Color(0xFF1976D2),
+      const Color(0xFFC2185B),
+      const Color(0xFFE65100),
+      const Color(0xFF388E3C),
+      const Color(0xFF7B1FA2),
+      const Color(0xFF00838F),
+    ];
+    
+    final colorIndex = category.id % colors.length;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (_selectedCategorySlug == category.slug) {
+            _selectedCategorySlug = null;
+          } else {
+            _selectedCategorySlug = category.slug;
+          }
+        });
+      },
+      child: Container(
+        width: 85,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                color: isSelected ? AppColors.primary : colors[colorIndex],
+                borderRadius: BorderRadius.circular(16),
+                border: isSelected ? Border.all(color: AppColors.primary, width: 2) : null,
+              ),
+              child: Icon(
+                _getCategoryIcon(category.icon),
+                color: isSelected ? AppColors.white : iconColors[colorIndex],
+                size: 28,
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              children: [
-                Container(height: 12, color: AppColors.border),
-                const SizedBox(height: 4),
-                Container(height: 12, width: 80, color: AppColors.border),
-              ],
+            const SizedBox(height: 8),
+            Text(
+              category.name,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? AppColors.primary : AppColors.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildEmptyProducts() {
+  IconData _getCategoryIcon(String? icon) {
+    switch (icon?.toLowerCase()) {
+      case 'tv':
+        return Icons.tv;
+      case 'mobile-alt':
+      case 'mobile':
+        return Icons.smartphone;
+      case 'tools':
+        return Icons.build;
+      case 'tshirt':
+        return Icons.checkroom;
+      case 'glasses':
+        return Icons.visibility;
+      case 'shoe-prints':
+        return Icons.directions_walk;
+      case 'suitcase':
+        return Icons.luggage;
+      case 'gem':
+        return Icons.diamond;
+      case 'car':
+        return Icons.directions_car;
+      case 'home':
+        return Icons.home;
+      case 'laptop':
+        return Icons.laptop;
+      default:
+        return Icons.category;
+    }
+  }
+
+  Widget _buildEmptyState() {
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.storefront, size: 64, color: AppColors.textTertiary),
+          Icon(Icons.storefront_outlined, size: 80, color: AppColors.textTertiary),
           const SizedBox(height: 16),
           const Text(
-            'No featured products yet',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            'No products found',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Check back soon for amazing deals!',
-            style: TextStyle(color: AppColors.textSecondary),
+          Text(
+            _selectedCategorySlug != null 
+                ? 'No products in this category yet'
+                : 'Check back soon for amazing deals!',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -602,22 +591,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             // Product Image
             Expanded(
+              flex: 3,
               child: Stack(
                 children: [
                   Container(
                     width: double.infinity,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: AppColors.border,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
                     ),
                     child: listing.primaryImage != null
                         ? ClipRRect(
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                             child: Image.network(
-                              '${AppConstants.storageUrl}/${listing.primaryImage}',
+                              listing.primaryImage!,
                               fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                    strokeWidth: 2,
+                                  ),
+                                );
+                              },
                               errorBuilder: (_, __, ___) => const Center(
-                                child: Icon(Icons.image_outlined, color: AppColors.textTertiary),
+                                child: Icon(Icons.image_outlined, color: AppColors.textTertiary, size: 40),
                               ),
                             ),
                           )
@@ -629,26 +633,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 4,
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final isWishlisted = ref.watch(isInWishlistProvider(listing.id));
+                        return GestureDetector(
+                          onTap: () => _handleToggleWishlist(listing.id),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              isWishlisted ? Icons.favorite : Icons.favorite_outline,
+                              size: 18,
+                              color: isWishlisted ? AppColors.error : AppColors.textSecondary,
+                            ),
                           ),
-                        ],
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.favorite_outline, size: 16),
-                        padding: EdgeInsets.zero,
-                        onPressed: () {
-                          // TODO: Toggle wishlist
-                        },
-                      ),
+                        );
+                      },
                     ),
                   ),
                   // Stock Badge
@@ -676,88 +686,68 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
             // Product Info
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    listing.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  if (listing.vendor != null)
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      listing.vendor!.businessName,
+                      listing.title,
                       style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  const SizedBox(height: 4),
-                  // Rating
-                  Row(
-                    children: [
-                      const Icon(Icons.star, size: 14, color: Colors.amber),
-                      const SizedBox(width: 2),
+                    const SizedBox(height: 4),
+                    if (listing.vendor != null)
                       Text(
-                        '${listing.displayRating}',
+                        listing.vendor!.businessName,
                         style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '(${listing.displayReviewsCount})',
-                        style: const TextStyle(
-                          color: AppColors.textTertiary,
+                          color: AppColors.textSecondary,
                           fontSize: 11,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // Price and Cart Button
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          listing.formattedPrice,
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                    const Spacer(),
+                    // Price and Cart Button
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            listing.formattedPrice,
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _handleAddToCart(listing.id),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.add_shopping_cart,
-                            color: AppColors.white,
-                            size: 16,
+                        GestureDetector(
+                          onTap: () => _handleAddToCart(listing.id),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.add_shopping_cart,
+                              color: AppColors.white,
+                              size: 16,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

@@ -71,10 +71,10 @@ class UserModel {
     };
   }
   
-  // Role checks matching Laravel User model methods
-  bool get isVendor => 
-      (role == 'vendor_local' || role == 'vendor_international') &&
-      vendorProfile?.vettingStatus == 'approved';
+  // FIXED: Role checks - vendor detection based on ROLE first
+  // A user IS a vendor if their role is vendor_local or vendor_international
+  // They can ACCESS vendor dashboard only if approved, otherwise go to onboarding
+  bool get isVendor => role == 'vendor_local' || role == 'vendor_international';
   
   bool get isBuyer => role == 'buyer';
   
@@ -84,10 +84,15 @@ class UserModel {
   
   bool get isVendorInternational => role == 'vendor_international';
   
+  // Check if vendor needs to complete onboarding
   bool get isInVendorOnboarding => 
-      vendorProfile != null && vendorProfile!.vettingStatus != 'approved';
+      isVendor && (vendorProfile == null || vendorProfile!.vettingStatus != 'approved');
   
-  bool get isApprovedVendor => vendorProfile?.isApproved ?? false;
+  // Check if vendor is fully approved and can access dashboard
+  bool get isApprovedVendor => isVendor && vendorProfile?.isApproved == true;
+  
+  // Alias for clarity
+  bool get canAccessVendorDashboard => isApprovedVendor;
   
   String get displayName => name ?? phone;
   
@@ -173,27 +178,27 @@ class VendorProfileModel {
   
   factory VendorProfileModel.fromJson(Map<String, dynamic> json) {
     return VendorProfileModel(
-      id: json['id'] as int,
-      userId: json['user_id'] as int,
-      businessName: json['business_name'] as String? ?? '',
-      businessDescription: json['business_description'] as String?,
-      businessAddress: json['business_address'] as String?,
-      phone: json['phone'] as String?,
-      email: json['email'] as String?,
-      logo: json['logo'] as String?,
-      banner: json['banner'] as String?,
-      vendorType: json['vendor_type'] as String?,
-      vettingStatus: json['vetting_status'] as String? ?? 'pending',
-      country: json['country'] as String?,
-      city: json['city'] as String?,
-      rating: (json['rating'] as num?)?.toDouble(),
-      totalSales: json['total_sales'] as int?,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      userId: json['user_id'] is int ? json['user_id'] : int.tryParse(json['user_id']?.toString() ?? '0') ?? 0,
+      businessName: json['business_name']?.toString() ?? '',
+      businessDescription: json['business_description']?.toString(),
+      businessAddress: json['business_address']?.toString(),
+      phone: json['phone']?.toString(),
+      email: json['email']?.toString(),
+      logo: json['logo']?.toString(),
+      banner: json['banner']?.toString(),
+      vendorType: json['vendor_type']?.toString(),
+      vettingStatus: json['vetting_status']?.toString() ?? 'pending',
+      country: json['country']?.toString(),
+      city: json['city']?.toString(),
+      rating: json['rating'] is num ? json['rating'].toDouble() : null,
+      totalSales: json['total_sales'] is int ? json['total_sales'] : int.tryParse(json['total_sales']?.toString() ?? '0'),
       meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? DateTime.tryParse(json['created_at'].toString())
           : null,
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
+          ? DateTime.tryParse(json['updated_at'].toString())
           : null,
     );
   }

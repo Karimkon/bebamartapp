@@ -94,6 +94,9 @@ final routerProvider = Provider<GoRouter>((ref) {
                             currentPath == '/categories' ||
                             currentPath.startsWith('/category');
       
+      // Vendor routes
+      final isVendorRoute = currentPath.startsWith('/vendor');
+      
       // User is NOT authenticated
       if (!isAuthenticated) {
         // Allow auth routes and public routes
@@ -115,9 +118,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         // If on auth routes, redirect to appropriate home
         if (isAuthRoute) {
           final destination = isVendor ? '/vendor' : '/';
-          print('🔄 Redirecting auth route to $destination (authenticated)');
+          print('🔄 Redirecting auth route to $destination (authenticated, isVendor=$isVendor)');
           return destination;
         }
+        
+        // Prevent buyers from accessing vendor routes
+        if (isVendorRoute && !isVendor) {
+          print('🔄 Buyer tried to access vendor route, redirecting to home');
+          return '/';
+        }
+        
+        // Prevent vendors from accessing buyer-only routes (like checkout without context)
+        // But allow them to browse products
+        
         // Allow all other routes
         return null;
       }

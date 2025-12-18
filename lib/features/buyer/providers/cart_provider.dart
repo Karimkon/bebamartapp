@@ -1,5 +1,4 @@
 // lib/features/buyer/providers/cart_provider.dart
-import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
@@ -34,7 +33,7 @@ class CartItem {
     return CartItem(
       listingId: json['listing_id'] ?? 0,
       title: json['title'] ?? 'Unknown Product',
-      price: (json['price'] ?? 0).toDouble(),
+      price: json['price'] is String ? double.tryParse(json['price']) ?? 0.0 : (json['price'] ?? 0).toDouble(),
       quantity: json['quantity'] ?? 1,
       thumbnail: json['thumbnail'],
       variantId: json['variant_id'],

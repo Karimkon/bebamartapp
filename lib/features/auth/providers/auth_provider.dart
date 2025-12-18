@@ -181,56 +181,70 @@ class AuthNotifier extends StateNotifier<AuthState> {
             print('❌ User parsing error: $e');
             print('📦 Raw user data: ${userResponse.data}');
             
-            // Fallback: still mark as authenticated with basic user
+            // Fallback: Extract role from response if possible
+            String fallbackRole = 'buyer';
+            if (userResponse.data is Map) {
+              final userData = userResponse.data['data'] ?? userResponse.data;
+              fallbackRole = userData['role']?.toString() ?? 'buyer';
+            }
+            
             final fallbackUser = UserModel(
               id: 0,
               phone: '', // Empty phone
-              role: 'buyer',
+              role: fallbackRole,
               email: email,
             );
             
-            // Save minimal user data
+            // Save user data with actual role
             await _storage.saveUser({
               'id': 0,
               'email': email,
-              'role': 'buyer'
+              'role': fallbackRole
             });
-            await _storage.saveUserRole('buyer');
+            await _storage.saveUserRole(fallbackRole);
             
             state = state.copyWith(
               status: AuthStatus.authenticated,
               user: fallbackUser,
               isLoading: false,
             );
-            print('⚠️ Using fallback user due to parsing error');
+            print('⚠️ Using fallback user with role: $fallbackRole');
             return true;
           }
         } else {
           // User endpoint failed, but login was successful
           print('⚠️ /api/user failed but login succeeded');
           
-          // Create fallback user
+          // Try to get role from login response
+          String fallbackRole = 'buyer';
+          if (response.data is Map) {
+            final userData = response.data['user'] ?? response.data;
+            if (userData is Map) {
+              fallbackRole = userData['role']?.toString() ?? 'buyer';
+            }
+          }
+          
           final fallbackUser = UserModel(
             id: 0,
             phone: '',
-            role: 'buyer',
+            role: fallbackRole,
             email: email,
           );
           
-          // Save minimal data
+          // Save minimal data with actual role
           await _storage.saveUser({
             'id': 0,
             'email': email,
-            'role': 'buyer'
+            'role': fallbackRole
           });
-          await _storage.saveUserRole('buyer');
+          await _storage.saveUserRole(fallbackRole);
           
           state = state.copyWith(
             status: AuthStatus.authenticated,
             user: fallbackUser,
             isLoading: false,
           );
-          print('⚠️ Using fallback user - /api/user endpoint failed');
+          print('⚠️ Using fallback user with role: $fallbackRole');
           return true;
         }
       }

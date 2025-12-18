@@ -51,17 +51,17 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
 
   Widget _buildCategoriesList(List<CategoryModel> categories) {
     if (categories.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.category_outlined,
               size: 64,
               color: AppColors.textTertiary,
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16),
+            Text(
               'No categories found',
               style: TextStyle(
                 fontSize: 18,
@@ -69,8 +69,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Categories will appear here soon',
               style: TextStyle(
                 color: AppColors.textSecondary,

@@ -117,33 +117,33 @@ class ListingModel {
     }
     
     return ListingModel(
-      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       vendorProfileId: json['vendor_profile_id'] is int 
           ? json['vendor_profile_id'] 
-          : int.tryParse(json['vendor_profile_id'].toString()) ?? 1,
+          : int.tryParse(json['vendor_profile_id']?.toString() ?? '1') ?? 1,
       title: json['title']?.toString() ?? 'Unknown Product',
       description: json['description']?.toString(),
       sku: json['sku']?.toString(),
-      price: (json['price'] is num ? json['price'].toDouble() : 0.0),
+      price: json['price'] is String ? double.tryParse(json['price']) ?? 0.0 : (json['price'] is num ? json['price'].toDouble() : 0.0),
       weightKg: json['weight_kg'] is num ? json['weight_kg'].toDouble() : null,
       origin: json['origin']?.toString(),
       condition: json['condition']?.toString(),
       categoryId: json['category_id'] is int 
           ? json['category_id'] 
           : json['category_id'] != null 
-            ? int.tryParse(json['category_id'].toString()) 
+            ? int.tryParse(json['category_id']?.toString() ?? '0') 
             : null,
-      stock: json['stock'] is int ? json['stock'] : int.tryParse(json['stock'].toString()) ?? 0,
+      stock: json['stock'] is int ? json['stock'] : int.tryParse(json['stock']?.toString() ?? '0') ?? 0,
       attributes: json['attributes'] is Map<String, dynamic> 
           ? Map<String, dynamic>.from(json['attributes']) 
           : null,
       isActive: json['is_active'] == true || json['is_active'] == 1 || json['is_active'] == '1',
-      viewCount: json['view_count'] is int ? json['view_count'] : int.tryParse(json['view_count'].toString()) ?? 0,
-      clickCount: json['click_count'] is int ? json['click_count'] : int.tryParse(json['click_count'].toString()) ?? 0,
-      wishlistCount: json['wishlist_count'] is int ? json['wishlist_count'] : int.tryParse(json['wishlist_count'].toString()) ?? 0,
-      cartAddCount: json['cart_add_count'] is int ? json['cart_add_count'] : int.tryParse(json['cart_add_count'].toString()) ?? 0,
-      purchaseCount: json['purchase_count'] is int ? json['purchase_count'] : int.tryParse(json['purchase_count'].toString()) ?? 0,
-      shareCount: json['share_count'] is int ? json['share_count'] : int.tryParse(json['share_count'].toString()) ?? 0,
+      viewCount: json['view_count'] is int ? json['view_count'] : int.tryParse(json['view_count']?.toString() ?? '0') ?? 0,
+      clickCount: json['click_count'] is int ? json['click_count'] : int.tryParse(json['click_count']?.toString() ?? '0') ?? 0,
+      wishlistCount: json['wishlist_count'] is int ? json['wishlist_count'] : int.tryParse(json['wishlist_count']?.toString() ?? '0') ?? 0,
+      cartAddCount: json['cart_add_count'] is int ? json['cart_add_count'] : int.tryParse(json['cart_add_count']?.toString() ?? '0') ?? 0,
+      purchaseCount: json['purchase_count'] is int ? json['purchase_count'] : int.tryParse(json['purchase_count']?.toString() ?? '0') ?? 0,
+      shareCount: json['share_count'] is int ? json['share_count'] : int.tryParse(json['share_count']?.toString() ?? '0') ?? 0,
       lastViewedAt: json['last_viewed_at'] != null
           ? DateTime.tryParse(json['last_viewed_at'].toString())
           : null,
@@ -166,7 +166,7 @@ class ListingModel {
       reviewsCount: json['reviews_count'] is int 
           ? json['reviews_count'] 
           : json['reviews_count'] != null 
-            ? int.tryParse(json['reviews_count'].toString()) 
+            ? int.tryParse(json['reviews_count']?.toString() ?? '0') 
             : 0,
     );
   }
@@ -282,8 +282,8 @@ class ListingImageModel {
   
   factory ListingImageModel.fromJson(Map<String, dynamic> json) {
     return ListingImageModel(
-      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
-      listingId: json['listing_id'] is int ? json['listing_id'] : int.tryParse(json['listing_id'].toString()) ?? 0,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      listingId: json['listing_id'] is int ? json['listing_id'] : int.tryParse(json['listing_id']?.toString() ?? '0') ?? 0,
       path: json['path']?.toString() ?? '',
       sortOrder: json['sort_order'] is int ? json['sort_order'] : json['order'] is int ? json['order'] : null,
       createdAt: json['created_at'] != null
@@ -333,12 +333,12 @@ class ListingVariantModel {
   
   factory ListingVariantModel.fromJson(Map<String, dynamic> json) {
     return ListingVariantModel(
-      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
-      listingId: json['listing_id'] is int ? json['listing_id'] : int.tryParse(json['listing_id'].toString()) ?? 0,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      listingId: json['listing_id'] is int ? json['listing_id'] : int.tryParse(json['listing_id']?.toString() ?? '0') ?? 0,
       sku: json['sku']?.toString(),
-      price: (json['price'] is num ? json['price'].toDouble() : 0.0),
+      price: json['price'] is String ? double.tryParse(json['price']) ?? 0.0 : (json['price'] is num ? json['price'].toDouble() : 0.0),
       displayPrice: json['display_price'] is num ? json['display_price'].toDouble() : null,
-      stock: json['stock'] is int ? json['stock'] : int.tryParse(json['stock'].toString()) ?? 0,
+      stock: json['stock'] is int ? json['stock'] : int.tryParse(json['stock']?.toString() ?? '0') ?? 0,
       attributes: json['attributes'] is Map<String, dynamic>
           ? Map<String, dynamic>.from(json['attributes'])
           : null,
@@ -417,13 +417,13 @@ class ReviewModel {
   
   factory ReviewModel.fromJson(Map<String, dynamic> json) {
     return ReviewModel(
-      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
-      userId: json['user_id'] is int ? json['user_id'] : int.tryParse(json['user_id'].toString()) ?? 0,
-      listingId: json['listing_id'] is int ? json['listing_id'] : int.tryParse(json['listing_id'].toString()) ?? 0,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      userId: json['user_id'] is int ? json['user_id'] : int.tryParse(json['user_id']?.toString() ?? '0') ?? 0,
+      listingId: json['listing_id'] is int ? json['listing_id'] : int.tryParse(json['listing_id']?.toString() ?? '0') ?? 0,
       orderId: json['order_id'] != null 
-          ? (json['order_id'] is int ? json['order_id'] : int.tryParse(json['order_id'].toString())) 
+          ? (json['order_id'] is int ? json['order_id'] : int.tryParse(json['order_id']?.toString() ?? '0')) 
           : null,
-      rating: json['rating'] is int ? json['rating'] : int.tryParse(json['rating'].toString()) ?? 0,
+      rating: json['rating'] is int ? json['rating'] : int.tryParse(json['rating']?.toString() ?? '0') ?? 0,
       title: json['title']?.toString(),
       comment: json['comment']?.toString(),
       status: json['status']?.toString() ?? 'pending',
@@ -431,8 +431,8 @@ class ReviewModel {
       vendorResponseAt: json['vendor_response_at'] != null
           ? DateTime.tryParse(json['vendor_response_at'].toString())
           : null,
-      helpfulVotes: json['helpful_votes'] is int ? json['helpful_votes'] : int.tryParse(json['helpful_votes'].toString()) ?? 0,
-      unhelpfulVotes: json['unhelpful_votes'] is int ? json['unhelpful_votes'] : int.tryParse(json['unhelpful_votes'].toString()) ?? 0,
+      helpfulVotes: json['helpful_votes'] is int ? json['helpful_votes'] : int.tryParse(json['helpful_votes']?.toString() ?? '0') ?? 0,
+      unhelpfulVotes: json['unhelpful_votes'] is int ? json['unhelpful_votes'] : int.tryParse(json['unhelpful_votes']?.toString() ?? '0') ?? 0,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString())
           : null,
