@@ -419,7 +419,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     sliver: SliverGrid(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
-                        childAspectRatio: 0.65,
+                        childAspectRatio: 0.7,
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
                       ),
@@ -615,188 +615,186 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildProductCard(ListingModel listing) {
-    return GestureDetector(
-      onTap: () => context.push('/product/${listing.id}'),
-      child: Container(
-        constraints: const BoxConstraints(maxHeight: 280), // Add max height constraint
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Product Image
-            SizedBox(
-              height: 150, // Fixed height instead of Expanded
-              width: double.infinity,
-              child: Stack(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    decoration: const BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                    ),
-                    child: listing.primaryImage != null
-                        ? ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                            child: Image.network(
-                              listing.primaryImage!,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Center(
-                                  child: CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
-                                        : null,
-                                    strokeWidth: 2,
-                                  ),
-                                );
-                              },
-                              errorBuilder: (_, __, ___) => const Center(
-                                child: Icon(Icons.image_outlined, color: AppColors.textTertiary, size: 40),
-                              ),
-                            ),
-                          )
-                        : const Center(
-                            child: Icon(Icons.image_outlined, color: AppColors.textTertiary, size: 48),
-                          ),
+  return GestureDetector(
+    onTap: () => context.push('/product/${listing.id}'),
+    child: Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Product Image - Fixed height
+          SizedBox(
+            height: 150,
+            width: double.infinity,
+            child: Stack(
+              children: [
+                Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
                   ),
-                  // Wishlist Button
+                  child: listing.primaryImage != null
+                      ? ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                          child: Image.network(
+                            listing.primaryImage!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  strokeWidth: 2,
+                                ),
+                              );
+                            },
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(Icons.image_outlined, color: AppColors.textTertiary, size: 40),
+                            ),
+                          ),
+                        )
+                      : const Center(
+                          child: Icon(Icons.image_outlined, color: AppColors.textTertiary, size: 48),
+                        ),
+                ),
+                // Wishlist Button
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final isWishlisted = ref.watch(isInWishlistProvider(listing.id));
+                      return GestureDetector(
+                        onTap: () => _handleToggleWishlist(listing.id),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isWishlisted ? Icons.favorite : Icons.favorite_outline,
+                            size: 18,
+                            color: isWishlisted ? AppColors.error : AppColors.textSecondary,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                // Stock Badge
+                if (listing.stock <= 10 && listing.stock > 0)
                   Positioned(
                     top: 8,
-                    right: 8,
-                    child: Consumer(
-                      builder: (context, ref, _) {
-                        final isWishlisted = ref.watch(isInWishlistProvider(listing.id));
-                        return GestureDetector(
-                          onTap: () => _handleToggleWishlist(listing.id),
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 4,
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              isWishlisted ? Icons.favorite : Icons.favorite_outline,
-                              size: 18,
-                              color: isWishlisted ? AppColors.error : AppColors.textSecondary,
-                            ),
-                          ),
-                        );
-                      },
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Only ${listing.stock} left',
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-                  // Stock Badge
-                  if (listing.stock <= 10 && listing.stock > 0)
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'Only ${listing.stock} left',
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              ],
             ),
-            // Product Info
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      listing.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+          ),
+          // Product Info - Flexible part
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  listing.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                if (listing.vendor != null)
+                  Text(
+                    listing.vendor!.businessName,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
                     ),
-                    const SizedBox(height: 4),
-                    if (listing.vendor != null)
-                      Text(
-                        listing.vendor!.businessName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                const SizedBox(height: 8),
+                // Price and Cart Button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        listing.formattedPrice,
                         style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    const Spacer(),
-                    // Price and Cart Button
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            listing.formattedPrice,
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
+                    ),
+                    GestureDetector(
+                      onTap: () => _handleAddToCart(listing.id),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        GestureDetector(
-                          onTap: () => _handleAddToCart(listing.id),
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.add_shopping_cart,
-                              color: AppColors.white,
-                              size: 16,
-                            ),
-                          ),
+                        child: const Icon(
+                          Icons.add_shopping_cart,
+                          color: AppColors.white,
+                          size: 16,
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

@@ -235,7 +235,10 @@ class ListingModel {
   double get displayRating => averageRating ?? 0.0;
   
   int get displayReviewsCount => reviewsCount ?? 0;
-  
+
+  // Backwards-compatible alias: some vendor UI expects `quantity`
+  int get quantity => stock;
+
   bool get isInStock => stock > 0 || hasVariations;
   
   String get formattedPrice => 'UGX ${price.toStringAsFixed(0)}';

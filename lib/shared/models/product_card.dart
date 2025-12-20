@@ -5,6 +5,7 @@ import '../../features/buyer/providers/cart_provider.dart';
 import '../../features/buyer/providers/variation_provider.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
+import 'variation_modal.dart';
 
 class ProductCard extends ConsumerStatefulWidget {
   final int id;
@@ -60,7 +61,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
             Stack(
               children: [
                 Container(
-                  height: 150,
+                  height: 140,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     color: AppColors.border,
@@ -115,11 +116,13 @@ class _ProductCardState extends ConsumerState<ProductCard> {
             ),
             
             // Product Info
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   // Title
                   Text(
                     widget.title,
@@ -198,8 +201,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                         ),
                     ],
                   ),
-                ],
-              ),
+                ),
             ),
           ],
         ),
@@ -220,17 +222,17 @@ class _ProductCardState extends ConsumerState<ProductCard> {
       return;
     }
     
-    // Load variations first
+    // Load variations first (if not already loaded)
     final variationState = ref.watch(variationProvider(widget.id));
-    
-    if (variationState.isLoading) {
-      // Show loading
+
+    if (!variationState.isLoading && variationState.variations.isEmpty) {
+      // Show loading while fetching
       setState(() => _isAdding = true);
       await ref.read(variationProvider(widget.id).notifier).loadVariations(widget.id);
       setState(() => _isAdding = false);
     }
-    
-    final hasVariations = variationState.hasVariations;
+
+    final hasVariations = ref.read(variationProvider(widget.id)).hasVariations;
     
     if (hasVariations) {
       // Show variation modal

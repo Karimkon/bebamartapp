@@ -494,3 +494,5 @@ final isAuthenticatedProvider = Provider<bool>((ref) => ref.watch(authProvider).
 final isVendorProvider = Provider<bool>((ref) => ref.watch(authProvider).isVendor);
 final isBuyerProvider = Provider<bool>((ref) => ref.watch(authProvider).isBuyer);
 final authStatusProvider = Provider<AuthStatus>((ref) => ref.watch(authProvider).status);
+// Legacy alias used across the app
+final authStateProvider = authProvider;

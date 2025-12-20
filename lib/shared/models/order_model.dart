@@ -24,7 +24,7 @@ class OrderModel {
   final int? processingTimeHours;
   final double? deliveryScore;
   final Map<String, dynamic>? meta;
-  final DateTime? createdAt;
+  final DateTime createdAt;
   final DateTime? updatedAt;
   
   // Relationships
@@ -54,14 +54,14 @@ class OrderModel {
     this.processingTimeHours,
     this.deliveryScore,
     this.meta,
-    this.createdAt,
+    DateTime? createdAt,
     this.updatedAt,
     this.buyer,
     this.vendorProfile,
     this.items = const [],
     this.payments,
     this.escrow,
-  });
+  }) : createdAt = createdAt ?? DateTime.now();
   
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     return OrderModel(
@@ -84,7 +84,7 @@ class OrderModel {
       processingTimeHours: json['processing_time_hours'] is int ? json['processing_time_hours'] : int.tryParse(json['processing_time_hours']?.toString() ?? ''),
       deliveryScore: json['delivery_score'] is num ? json['delivery_score'].toDouble() : double.tryParse(json['delivery_score']?.toString() ?? ''),
       meta: json['meta'] is Map<String, dynamic> ? json['meta'] : (json['meta'] is String ? null : null),
-      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now() : DateTime.now(),
       updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null,
       buyer: json['buyer'] != null && json['buyer'] is Map<String, dynamic> ? UserModel.fromJson(json['buyer']) : null,
       vendorProfile: json['vendor_profile'] != null && json['vendor_profile'] is Map<String, dynamic> ? VendorProfileModel.fromJson(json['vendor_profile']) : null,
@@ -115,7 +115,7 @@ class OrderModel {
       'processing_time_hours': processingTimeHours,
       'delivery_score': deliveryScore,
       'meta': meta,
-      'created_at': createdAt?.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
   }
@@ -157,8 +157,12 @@ class OrderModel {
   // Computed properties
   int get itemsCount => items.length;
   String get createdAtFormatted => createdAt != null 
-      ? '${createdAt!.day.toString().padLeft(2, '0')}/${createdAt!.month.toString().padLeft(2, '0')}/${createdAt!.year}'
+      ? '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}'
       : 'N/A';
+
+    // Compatibility helpers
+    String? get paymentStatus => meta?['payment_status'] as String? ?? meta?['paymentStatus'] as String?;
+    double get shippingCost => shipping;
   
   // Vendor alias for consistency
   VendorProfileModel? get vendor => vendorProfile;
@@ -228,10 +232,29 @@ class OrderItemModel {
   String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
   
   // Image URL from listing
-  String? get imageUrl => listing?.images.isNotEmpty == true ? listing!.images.first.fullPath : null;
+  String? get imageUrl {
+    // Prefer explicit image/thumbnail in meta if provided by API
+    if (meta != null) {
+      final m = meta!;
+      if (m['thumbnail'] != null && m['thumbnail'].toString().isNotEmpty) return m['thumbnail'].toString();
+      if (m['image'] != null && m['image'].toString().isNotEmpty) return m['image'].toString();
+      if (m['image_url'] != null && m['image_url'].toString().isNotEmpty) return m['image_url'].toString();
+      if (m['thumbnail_path'] != null && m['thumbnail_path'].toString().isNotEmpty) return m['thumbnail_path'].toString();
+    }
+
+    // Fall back to listing images when available
+    if (listing?.images.isNotEmpty == true) return listing!.images.first.fullPath;
+
+    // No image available
+    return null;
+  }
   
   // Title from listing
   String get title => listing?.title ?? 'Product';
+
+  // Compatibility helpers expected by UI
+  dynamic get variant => meta?['variant'];
+  double get price => unitPrice;
 }
 
 // Payment model
@@ -338,7 +361,7 @@ class ShippingAddressInfo {
   final String? postalCode;
   final String country;
   final String? deliveryInstructions;
-  final String? fullAddress;
+  final String fullAddress;
   
   ShippingAddressInfo({
     this.label,
@@ -351,7 +374,7 @@ class ShippingAddressInfo {
     this.postalCode,
     this.country = 'Uganda',
     this.deliveryInstructions,
-    this.fullAddress,
+    this.fullAddress = '',
   });
   
   factory ShippingAddressInfo.fromJson(Map<String, dynamic> json) {
@@ -366,13 +389,13 @@ class ShippingAddressInfo {
       postalCode: json['postal_code']?.toString(),
       country: json['country']?.toString() ?? 'Uganda',
       deliveryInstructions: json['delivery_instructions']?.toString(),
-      fullAddress: json['full_address']?.toString(),
+      fullAddress: json['full_address']?.toString() ?? '',
     );
   }
   
   String get displayAddress {
-    if (fullAddress != null && fullAddress!.isNotEmpty) {
-      return fullAddress!;
+    if (fullAddress.isNotEmpty) {
+      return fullAddress;
     }
     final parts = <String>[addressLine1];
     if (addressLine2 != null && addressLine2!.isNotEmpty) {
@@ -385,4 +408,8 @@ class ShippingAddressInfo {
     parts.add(country);
     return parts.join(', ');
   }
+
+  // Compatibility getters expected by UI
+  String? get fullName => recipientName;
+  String? get phone => recipientPhone;
 }

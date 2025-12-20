@@ -1,4 +1,5 @@
 // lib/features/buyer/providers/cart_provider.dart
+import 'dart:convert';  
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
@@ -30,17 +31,127 @@ class CartItem {
   });
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
-    return CartItem(
-      listingId: json['listing_id'] ?? 0,
-      title: json['title'] ?? 'Unknown Product',
-      price: json['price'] is String ? double.tryParse(json['price']) ?? 0.0 : (json['price'] ?? 0).toDouble(),
-      quantity: json['quantity'] ?? 1,
-      thumbnail: json['thumbnail'],
-      variantId: json['variant_id'],
-      attributes: json['attributes'],
-      stock: json['stock'] ?? 0,
-    );
+  print('🔍 Parsing cart item JSON - Looking for image...');
+  
+  // Extract attributes if they exist
+  Map<String, dynamic>? attributes;
+  if (json['attributes'] != null) {
+    if (json['attributes'] is Map) {
+      attributes = Map<String, dynamic>.from(json['attributes']);
+    } else if (json['attributes'] is String) {
+      try {
+        attributes = Map<String, dynamic>.from(jsonDecode(json['attributes']));
+      } catch (e) {
+        print('⚠️ Failed to parse attributes: $e');
+      }
+    }
   }
+
+  // Try ALL possible image field names - in order of priority
+  String? thumbnail;
+  final List<String> imageFieldNames = [
+    'primaryImage', 'primary_image', 'primaryImage', 'primary_image', // Home screen uses this
+    'thumbnail', 'thumbnail_url', 'thumbnailUrl',
+    'image', 'image_url', 'imageUrl',
+    'featured_image', 'featuredImage',
+    'cover_image', 'coverImage',
+    'photo', 'photo_url', 'photoUrl',
+  ];
+
+  for (final fieldName in imageFieldNames) {
+    if (json[fieldName] != null && json[fieldName].toString().trim().isNotEmpty) {
+      final relativePath = json[fieldName].toString();
+      // Construct full URL
+      thumbnail = 'http://bebamart.com/storage/$relativePath';
+      print('✅ Found image in field "$fieldName": $thumbnail');
+      break;
+    }
+  }
+
+  // If still no thumbnail, check nested product object
+  if (thumbnail == null && json['product'] != null && json['product'] is Map) {
+    final product = json['product'] as Map;
+    print('🔍 Checking nested product object for image...');
+    
+    for (final fieldName in imageFieldNames) {
+      if (product[fieldName] != null && product[fieldName].toString().trim().isNotEmpty) {
+        thumbnail = product[fieldName].toString();
+        print('✅ Found image in product.$fieldName: $thumbnail');
+        break;
+      }
+    }
+  }
+
+  // If still no thumbnail, check images array
+  if (thumbnail == null && json['images'] != null && json['images'] is List) {
+    final images = json['images'] as List;
+    if (images.isNotEmpty) {
+      final firstImage = images.first;
+      if (firstImage is String) {
+        thumbnail = firstImage;
+        print('✅ Found image in images[0] (String): $thumbnail');
+      } else if (firstImage is Map) {
+        // Check common image object field names
+        final imageMap = firstImage as Map<String, dynamic>;
+        final List<String> imageObjectFields = ['url', 'full_path', 'path', 'src', 'link'];
+        
+        for (final field in imageObjectFields) {
+          if (imageMap[field] != null && imageMap[field].toString().trim().isNotEmpty) {
+            thumbnail = imageMap[field].toString();
+            print('✅ Found image in images[0].$field: $thumbnail');
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Last resort: check product.images
+  if (thumbnail == null && json['product'] != null && json['product'] is Map) {
+    final product = json['product'] as Map;
+    if (product['images'] != null && product['images'] is List) {
+      final images = product['images'] as List;
+      if (images.isNotEmpty) {
+        final firstImage = images.first;
+        if (firstImage is String) {
+          thumbnail = firstImage;
+          print('✅ Found image in product.images[0] (String): $thumbnail');
+        } else if (firstImage is Map) {
+          final imageMap = firstImage as Map<String, dynamic>;
+          if (imageMap['url'] != null) {
+            thumbnail = imageMap['url'].toString();
+            print('✅ Found image in product.images[0].url: $thumbnail');
+          } else if (imageMap['full_path'] != null) {
+            thumbnail = imageMap['full_path'].toString();
+            print('✅ Found image in product.images[0].full_path: $thumbnail');
+          }
+        }
+      }
+    }
+  }
+
+  // Debug: if still no thumbnail
+  if (thumbnail == null) {
+    print('❌ No thumbnail found in any field!');
+    print('   Available keys: ${json.keys}');
+    if (json['product'] != null && json['product'] is Map) {
+      print('   Product keys: ${(json['product'] as Map).keys}');
+    }
+  } else {
+    print('   Final thumbnail URL: $thumbnail');
+  }
+
+  return CartItem(
+    listingId: json['listing_id'] ?? json['product_id'] ?? json['id'] ?? 0,
+    title: json['title'] ?? json['name'] ?? 'Unknown Product',
+    price: json['price'] is String ? double.tryParse(json['price']) ?? 0.0 : (json['price'] ?? 0).toDouble(),
+    quantity: json['quantity'] ?? 1,
+    thumbnail: thumbnail,  // Use the extracted thumbnail
+    variantId: json['variant_id'],
+    attributes: attributes,
+    stock: json['stock'] ?? json['available_stock'] ?? 0,
+  );
+}
 
   double get total => price * quantity;
 
@@ -115,16 +226,52 @@ class CartNotifier extends StateNotifier<CartState> {
     try {
       final response = await _api.get(ApiEndpoints.cart);
       print('📦 Cart response: ${response.statusCode}');
+      print('📦 Cart data: ${response.data}');
 
       if (response.statusCode == 200 && response.data is Map) {
         final data = response.data;
         
-        if (data['success'] == true) {
+          if (data['success'] == true) {
           final cartData = data['data'] ?? {};
           final itemsList = cartData['items'] as List? ?? [];
           
+          print('📦 Found ${itemsList.length} items in cart');
+          
+          // Debug each item
+          // Debug each item
+for (var i = 0; i < itemsList.length; i++) {
+  final item = itemsList[i];
+  print('   --- Item $i ---');
+  print('     product_id: ${item['product_id']}');
+  print('     variant_id: ${item['variant_id']}');
+  print('     attributes: ${item['attributes']}');
+  print('     title: ${item['title']}');
+  
+  // Check for image-related fields
+  print('     Checking for image fields:');
+  final imageFields = ['thumbnail', 'image', 'primaryImage', 'primary_image', 'primaryImage', 'primary_image', 'images'];
+  for (final field in imageFields) {
+    if (item[field] != null) {
+      print('       $field: ${item[field]} (type: ${item[field].runtimeType})');
+    }
+  }
+  
+  // Check if there's a nested product object
+  if (item['product'] != null) {
+    print('     Has nested product object');
+    final product = item['product'];
+    if (product is Map) {
+      print('     Product keys: ${product.keys}');
+      for (final field in imageFields) {
+        if (product[field] != null) {
+          print('       product.$field: ${product[field]} (type: ${product[field].runtimeType})');
+        }
+      }
+    }
+  }
+}
+          
           final items = itemsList.map((item) => CartItem.fromJson(item)).toList();
-
           state = state.copyWith(
             items: items,
             subtotal: (cartData['subtotal'] ?? 0).toDouble(),
@@ -155,31 +302,41 @@ class CartNotifier extends StateNotifier<CartState> {
     }
   }
 
-  Future<bool> addToCart(int listingId, int quantity, {int? variantId, Map<String, dynamic>? attributes}) async {
-    print('🛒 Adding to cart: listing=$listingId, qty=$quantity');
+// Update the addToCart method to handle variations properly:
+
+Future<bool> addToCart(int listingId, int quantity, {
+  int? variantId,
+  Map<String, dynamic>? attributes,
+}) async {
+  print('🛒 Adding to cart: listing=$listingId, qty=$quantity, variant=$variantId');
+  
+  try {
+    final data = {
+      'quantity': quantity,
+      if (variantId != null) 'variant_id': variantId,
+      if (attributes != null) 'attributes': attributes,
+    };
     
-    try {
-      final response = await _api.post(
-        ApiEndpoints.cartAdd(listingId),
-        data: {
-          'quantity': quantity,
-          if (variantId != null) 'variant_id': variantId,
-          if (attributes != null) 'attributes': attributes,
-        },
-      );
+    print('📦 Sending cart data: $data');
+    
+    final response = await _api.post(
+      ApiEndpoints.cartAdd(listingId),
+      data: data,
+    );
 
-      print('📦 Add to cart response: ${response.statusCode}');
+    print('📦 Add to cart response: ${response.statusCode}');
+    print('📦 Response data: ${response.data}');
 
-      if (response.statusCode == 200 && response.data['success'] == true) {
-        await loadCart();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      print('❌ Add to cart error: $e');
-      rethrow;
+    if (response.statusCode == 200 && response.data['success'] == true) {
+      await loadCart();
+      return true;
     }
+    return false;
+  } catch (e) {
+    print('❌ Add to cart error: $e');
+    rethrow;
   }
+}
 
   Future<bool> updateQuantity(int listingId, int quantity, {int? variantId}) async {
     print('🛒 Updating quantity: listing=$listingId, qty=$quantity');

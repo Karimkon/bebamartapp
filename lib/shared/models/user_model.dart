@@ -149,7 +149,7 @@ class VendorProfileModel {
   final String vettingStatus; // pending, approved, rejected
   final String? country;
   final String? city;
-  final double? rating;
+  final double rating;
   final int? totalSales;
   final Map<String, dynamic>? meta;
   final DateTime? createdAt;
@@ -169,7 +169,7 @@ class VendorProfileModel {
     this.vettingStatus = 'pending',
     this.country,
     this.city,
-    this.rating,
+    this.rating = 0.0,
     this.totalSales,
     this.meta,
     this.createdAt,
@@ -191,7 +191,7 @@ class VendorProfileModel {
       vettingStatus: json['vetting_status']?.toString() ?? 'pending',
       country: json['country']?.toString(),
       city: json['city']?.toString(),
-      rating: json['rating'] is num ? json['rating'].toDouble() : null,
+      rating: json['rating'] is num ? json['rating'].toDouble() : (double.tryParse(json['rating']?.toString() ?? '') ?? 0.0),
       totalSales: json['total_sales'] is int ? json['total_sales'] : int.tryParse(json['total_sales']?.toString() ?? '0'),
       meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
       createdAt: json['created_at'] != null
@@ -230,7 +230,10 @@ class VendorProfileModel {
   bool get isPending => vettingStatus == 'pending';
   bool get isRejected => vettingStatus == 'rejected';
   
-  String get displayRating => rating?.toStringAsFixed(1) ?? '0.0';
+  String get displayRating => rating.toStringAsFixed(1);
+  
+  // Compatibility alias expected by UI
+  String? get businessPhone => phone;
   
   String get location {
     final parts = <String>[];
@@ -238,6 +241,9 @@ class VendorProfileModel {
     if (country != null) parts.add(country!);
     return parts.join(', ');
   }
+
+  // Compatibility aliases expected by vendor UI
+  String get ratingValue => (rating ?? 0.0).toStringAsFixed(1);
 }
 
 // Shipping Address model mapped to shipping_addresses table

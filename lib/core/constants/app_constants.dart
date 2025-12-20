@@ -13,7 +13,7 @@ class AppConstants {
   //   iOS Simulator: http://127.0.0.1:8000
   //   Physical Device: http://YOUR_COMPUTER_IP:8000
   // For production: https://yourdomain.com
-  static const String baseUrl = 'http://192.168.3.68:8000';
+  static const String baseUrl = 'https://bebamart.com/';
 
   // API base URL - all API calls go through /api
   static const String apiUrl = '$baseUrl/api';

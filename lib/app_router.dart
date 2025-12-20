@@ -2,259 +2,275 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+// Auth
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/splash_screen.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
+
+// Buyer
 import 'features/buyer/screens/buyer_shell.dart';
 import 'features/buyer/screens/home_screen.dart';
-import 'features/buyer/screens/cart_screen.dart';
-import 'features/buyer/screens/orders_screen.dart';
-import 'features/buyer/screens/profile_screen.dart';
-import 'features/buyer/screens/product_detail_screen.dart';
-import 'features/buyer/screens/wishlist_screen.dart';
 import 'features/buyer/screens/categories_screen.dart';
-import 'features/buyer/screens/category_screen.dart'; // Add this import
-import 'features/buyer/screens/search_screen.dart';
+import 'features/buyer/screens/category_screen.dart';
+import 'features/buyer/screens/product_detail_screen.dart';
+import 'features/buyer/screens/cart_screen.dart';
 import 'features/buyer/screens/checkout_screen.dart';
+import 'features/buyer/screens/wishlist_screen.dart';
+import 'features/buyer/screens/orders_screen.dart';
 import 'features/buyer/screens/order_detail_screen.dart';
+import 'features/buyer/screens/profile_screen.dart';
+import 'features/buyer/screens/search_screen.dart';
+
+// Vendor
 import 'features/vendor/screens/vendor_shell.dart';
 import 'features/vendor/screens/vendor_dashboard_screen.dart';
 import 'features/vendor/screens/vendor_products_screen.dart';
+import 'features/vendor/screens/create_listing_screen.dart';
 import 'features/vendor/screens/vendor_orders_screen.dart';
+import 'features/vendor/screens/vendor_order_detail_screen.dart';
 import 'features/vendor/screens/vendor_profile_screen.dart';
 import 'features/vendor/screens/vendor_onboarding_screen.dart';
+
+// Chat
 import 'features/chat/screens/chat_list_screen.dart';
 import 'features/chat/screens/chat_detail_screen.dart';
 
-// Auth state notifier for router refresh
-class AuthStateNotifier extends ChangeNotifier {
-  AuthStatus _status = AuthStatus.unknown;
-  bool _isVendor = false;
-  
-  AuthStatus get status => _status;
-  bool get isVendor => _isVendor;
-  
-  void update(AuthState authState) {
-    final newStatus = authState.status;
-    final newIsVendor = authState.isVendor;
-    
-    if (_status != newStatus || _isVendor != newIsVendor) {
-      _status = newStatus;
-      _isVendor = newIsVendor;
-      notifyListeners();
-    }
-  }
-}
-
-final authStateNotifierProvider = Provider<AuthStateNotifier>((ref) {
-  final notifier = AuthStateNotifier();
-  
-  // Listen to auth changes and update the notifier
-  ref.listen<AuthState>(authProvider, (previous, next) {
-    notifier.update(next);
-  });
-  
-  // Initialize with current state
-  notifier.update(ref.read(authProvider));
-  
-  return notifier;
-});
-
 final routerProvider = Provider<GoRouter>((ref) {
-  final authNotifier = ref.watch(authStateNotifierProvider);
-  
+  final authState = ref.watch(authStateProvider);
+
   return GoRouter(
     initialLocation: '/splash',
     debugLogDiagnostics: true,
-    refreshListenable: authNotifier,
     redirect: (context, state) {
-      final status = authNotifier.status;
-      final isVendor = authNotifier.isVendor;
-      final currentPath = state.uri.path;
-      
-      print('🚦 Router redirect: path=$currentPath, status=$status, isVendor=$isVendor');
-      
-      // While checking auth status, show splash
-      if (status == AuthStatus.unknown) {
-        if (currentPath != '/splash') {
-          print('🔄 Redirecting to splash (auth unknown)');
-          return '/splash';
-        }
-        return null;
-      }
-      
-      final isAuthenticated = status == AuthStatus.authenticated;
-      final isAuthRoute = currentPath == '/login' || 
-                          currentPath == '/register' || 
-                          currentPath == '/vendor-register' ||
-                          currentPath == '/splash';
-      
-      // Public routes that don't require auth
-      final isPublicRoute = currentPath.startsWith('/product') ||
-                            currentPath == '/categories' ||
-                            currentPath.startsWith('/category');
-      
-      // Vendor routes
-      final isVendorRoute = currentPath.startsWith('/vendor');
-      
-      // User is NOT authenticated
-      if (!isAuthenticated) {
-        // Allow auth routes and public routes
-        if (isAuthRoute || isPublicRoute) {
-          // But redirect splash to login when not authenticated
-          if (currentPath == '/splash') {
-            print('🔄 Redirecting splash to login (unauthenticated)');
-            return '/login';
+      final isLoggedIn = authState.isAuthenticated;
+      final isLoading = authState.isLoading;
+      final location = state.matchedLocation;
+
+      // Special handling for splash: once auth check completes, navigate away
+      if (location == '/splash') {
+        if (isLoading) return null; // still checking
+        if (!isLoggedIn) return '/login';
+        final user = authState.user;
+        if (user != null) {
+          if (user.isVendor) {
+            return user.vendorProfile?.vettingStatus == 'approved'
+                ? '/vendor'
+                : '/vendor/onboarding';
           }
-          return null;
+          return '/home';
         }
-        // Redirect everything else to login
-        print('🔄 Redirecting to login (not authenticated)');
-        return '/login';
+        return '/home';
       }
-      
-      // User IS authenticated
-      if (isAuthenticated) {
-        // If on auth routes, redirect to appropriate home
-        if (isAuthRoute) {
-          final destination = isVendor ? '/vendor' : '/';
-          print('🔄 Redirecting auth route to $destination (authenticated, isVendor=$isVendor)');
-          return destination;
+
+      // Handle root path '/' — redirect to appropriate landing (home or vendor)
+      if (location == '/') {
+        if (isLoading) return null;
+        if (!isLoggedIn) return '/login';
+        final user = authState.user;
+        if (user != null) {
+          if (user.isVendor) {
+            return user.vendorProfile?.vettingStatus == 'approved'
+                ? '/vendor'
+                : '/vendor/onboarding';
+          }
+          return '/home';
         }
-        
-        // Prevent buyers from accessing vendor routes
-        if (isVendorRoute && !isVendor) {
-          print('🔄 Buyer tried to access vendor route, redirecting to home');
-          return '/';
-        }
-        
-        // Prevent vendors from accessing buyer-only routes (like checkout without context)
-        // But allow them to browse products
-        
-        // Allow all other routes
-        return null;
+        return '/home';
       }
-      
+
+      // Don't redirect while loading for other routes
+      if (isLoading) return null;
+
+      // Auth-only routes (exclude splash since handled above)
+      final isAuthRoute = location == '/login' || location == '/register';
+
+      // If not logged in and trying to access protected route
+      if (!isLoggedIn && !isAuthRoute) return '/login';
+
+      // If logged in and on auth route, redirect to appropriate dashboard
+      if (isLoggedIn && isAuthRoute) {
+        final user = authState.user;
+        if (user != null) {
+          if (user.isVendor) {
+            return user.vendorProfile?.vettingStatus == 'approved'
+                ? '/vendor'
+                : '/vendor/onboarding';
+          }
+          return '/home';
+        }
+        return '/home';
+      }
+
       return null;
     },
     routes: [
+      // Splash Screen
       GoRoute(
         path: '/splash',
-        builder: (_, __) => const SplashScreen(),
+        builder: (context, state) => const SplashScreen(),
       ),
+
+      // Auth Routes
       GoRoute(
         path: '/login',
-        builder: (_, __) => const LoginScreen(),
+        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: '/register',
-        builder: (_, __) => const RegisterScreen(),
+        builder: (context, state) => const RegisterScreen(),
       ),
-      GoRoute(
-        path: '/vendor-register',
-        builder: (_, __) => const RegisterScreen(isVendor: true),
-      ),
-      
-      // Buyer Shell with bottom navigation
+
+      // ==================== BUYER ROUTES ====================
       ShellRoute(
-        builder: (_, __, child) => BuyerShell(child: child),
+        builder: (context, state, child) => BuyerShell(child: child),
         routes: [
           GoRoute(
-            path: '/',
-            builder: (_, __) => const HomeScreen(),
+            path: '/home',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: HomeScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/categories',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: CategoriesScreen(),
+            ),
           ),
           GoRoute(
             path: '/cart',
-            builder: (_, __) => const CartScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: CartScreen(),
+            ),
           ),
           GoRoute(
             path: '/wishlist',
-            builder: (_, __) => const WishlistScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: WishlistScreen(),
+            ),
           ),
+          GoRoute(
+            path: '/buyer/orders',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: OrdersScreen(),
+            ),
+          ),
+          // Legacy/shortcut route used elsewhere in the app
           GoRoute(
             path: '/orders',
-            builder: (_, __) => const OrdersScreen(),
-          ),
-          GoRoute(
-            path: '/orders/:id',
-            builder: (_, state) => OrderDetailScreen(
-              orderId: int.parse(state.pathParameters['id']!),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: OrdersScreen(),
             ),
           ),
           GoRoute(
             path: '/profile',
-            builder: (_, __) => const ProfileScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ProfileScreen(),
+            ),
           ),
         ],
       ),
-      
-      // Routes outside the shell (no bottom nav)
-      GoRoute(
-        path: '/product/:id',
-        builder: (_, state) => ProductDetailScreen(
-          productId: int.parse(state.pathParameters['id']!),
-        ),
-      ),
-      GoRoute(
-        path: '/categories',
-        builder: (_, __) => const CategoriesScreen(),
-      ),
+
+      // Buyer routes outside shell (full screen)
       GoRoute(
         path: '/category/:slug',
-        name: 'category',
-        builder: (_, state) => CategoryScreen(
-          slug: state.pathParameters['slug']!,
+        builder: (context, state) => CategoryScreen(
+          slug: state.pathParameters['slug'] ?? '',
         ),
       ),
       GoRoute(
-        path: '/search',
-        builder: (_, __) => const SearchScreen(),
+        path: '/product/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return ProductDetailScreen(productId: id);
+        },
       ),
       GoRoute(
         path: '/checkout',
-        builder: (_, __) => const CheckoutScreen(),
-      ),
-      
-      // Chat routes
-      GoRoute(
-        path: '/chat',
-        builder: (_, __) => const ChatListScreen(),
+        builder: (context, state) => const CheckoutScreen(),
       ),
       GoRoute(
-        path: '/chat/:id',
-        builder: (_, state) => ChatDetailScreen(
-          conversationId: int.parse(state.pathParameters['id']!),
-        ),
+        path: '/orders/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return OrderDetailScreen(orderId: id);
+        },
       ),
-      
+      GoRoute(
+        path: '/search',
+        builder: (context, state) => const SearchScreen(),
+      ),
+
+      // ==================== VENDOR ROUTES ====================
+      // Vendor Onboarding (for pending vendors)
+      GoRoute(
+        path: '/vendor/onboarding',
+        builder: (context, state) => const VendorOnboardingScreen(),
+      ),
+
       // Vendor Shell with bottom navigation
       ShellRoute(
-        builder: (_, __, child) => VendorShell(child: child),
+        builder: (context, state, child) => VendorShell(child: child),
         routes: [
           GoRoute(
             path: '/vendor',
-            builder: (_, __) => const VendorDashboardScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: VendorDashboardScreen(),
+            ),
           ),
           GoRoute(
             path: '/vendor/products',
-            builder: (_, __) => const VendorProductsScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: VendorProductsScreen(),
+            ),
           ),
           GoRoute(
             path: '/vendor/orders',
-            builder: (_, __) => const VendorOrdersScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: VendorOrdersScreen(),
+            ),
           ),
           GoRoute(
             path: '/vendor/profile',
-            builder: (_, __) => const VendorProfileScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: VendorProfileScreen(),
+            ),
           ),
         ],
       ),
-      
-      // Vendor onboarding (outside shell)
+
+      // Vendor routes outside shell (full screen)
       GoRoute(
-        path: '/vendor/onboarding',
-        builder: (_, __) => const VendorOnboardingScreen(),
+        path: '/vendor/products/create',
+        builder: (context, state) => const CreateListingScreen(),
+      ),
+      GoRoute(
+        path: '/vendor/products/:id/edit',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return CreateListingScreen(listingId: id);
+        },
+      ),
+      GoRoute(
+        path: '/vendor/orders/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return VendorOrderDetailScreen(orderId: id);
+        },
+      ),
+
+      // ==================== CHAT ROUTES ====================
+      GoRoute(
+        path: '/chat',
+        builder: (context, state) => const ChatListScreen(),
+      ),
+      GoRoute(
+        path: '/chat/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return ChatDetailScreen(conversationId: id);
+        },
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
@@ -264,10 +280,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           children: [
             const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
-            Text('Page not found: ${state.uri.path}'),
+            Text('Page not found: ${state.matchedLocation}'),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => context.go('/'),
+              onPressed: () => context.go('/home'),
               child: const Text('Go Home'),
             ),
           ],
