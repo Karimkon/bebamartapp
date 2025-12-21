@@ -64,7 +64,7 @@ class OrderModel {
   }) : createdAt = createdAt ?? DateTime.now();
   
   factory OrderModel.fromJson(Map<String, dynamic> json) {
-    return OrderModel(
+    final order = OrderModel(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
       orderNumber: json['order_number']?.toString() ?? '',
       buyerId: json['buyer_id'] is int ? json['buyer_id'] : int.tryParse(json['buyer_id'].toString()) ?? 0,
@@ -92,6 +92,13 @@ class OrderModel {
       payments: (json['payments'] as List<dynamic>?)?.map((e) => PaymentModel.fromJson(e)).toList(),
       escrow: json['escrow'] != null && json['escrow'] is Map<String, dynamic> ? EscrowModel.fromJson(json['escrow']) : null,
     );
+    // Parse items_count from API if available
+    if (json['items_count'] != null) {
+      order._itemsCountFromApi = json['items_count'] is int
+          ? json['items_count']
+          : int.tryParse(json['items_count'].toString());
+    }
+    return order;
   }
   
   Map<String, dynamic> toJson() {
@@ -148,14 +155,24 @@ class OrderModel {
   bool get isCashOnDelivery => paymentMethod == 'cash_on_delivery';
   bool get canBuyerConfirmDelivery => isCashOnDelivery && status == 'shipped' && deliveredAt == null;
   
-  // Formatted prices
-  String get subtotalFormatted => 'UGX ${subtotal.toStringAsFixed(0)}';
-  String get shippingFormatted => 'UGX ${shipping.toStringAsFixed(0)}';
-  String get taxesFormatted => 'UGX ${taxes.toStringAsFixed(0)}';
-  String get totalFormatted => 'UGX ${total.toStringAsFixed(0)}';
-  
-  // Computed properties
-  int get itemsCount => items.length;
+  // Formatted prices (without currency prefix for flexible use)
+  String get subtotalFormatted => _formatNumber(subtotal);
+  String get shippingFormatted => _formatNumber(shipping);
+  String get taxesFormatted => _formatNumber(taxes);
+  String get totalFormatted => _formatNumber(total);
+
+  // Helper to format numbers with thousand separators
+  String _formatNumber(double value) {
+    final intValue = value.toInt();
+    return intValue.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+  }
+
+  // Computed properties - check items_count from API first, then fall back to items.length
+  int? _itemsCountFromApi;
+  int get itemsCount => _itemsCountFromApi ?? items.length;
   String get createdAtFormatted => createdAt != null 
       ? '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}'
       : 'N/A';

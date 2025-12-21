@@ -48,34 +48,53 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoading = authState.isLoading;
       final location = state.matchedLocation;
 
+      // Routes that require authentication
+      const protectedRoutes = [
+        '/checkout',
+        '/orders',
+        '/buyer/orders',
+        '/profile',
+        '/vendor',
+        '/vendor/products',
+        '/vendor/orders',
+        '/vendor/profile',
+        '/vendor/onboarding',
+        '/vendor/products/create',
+        '/chat',
+      ];
+
+      // Routes accessible to guests (browsing without login)
+      const guestRoutes = [
+        '/home',
+        '/categories',
+        '/cart',
+        '/wishlist',
+        '/search',
+      ];
+
       // Special handling for splash: once auth check completes, navigate away
       if (location == '/splash') {
         if (isLoading) return null; // still checking
-        if (!isLoggedIn) return '/login';
+        // Always go to home first - let users browse
+        if (!isLoggedIn) return '/home';
         final user = authState.user;
-        if (user != null) {
-          if (user.isVendor) {
-            return user.vendorProfile?.vettingStatus == 'approved'
-                ? '/vendor'
-                : '/vendor/onboarding';
-          }
-          return '/home';
+        if (user != null && user.isVendor) {
+          return user.vendorProfile?.vettingStatus == 'approved'
+              ? '/vendor'
+              : '/vendor/onboarding';
         }
         return '/home';
       }
 
-      // Handle root path '/' — redirect to appropriate landing (home or vendor)
+      // Handle root path '/'
       if (location == '/') {
         if (isLoading) return null;
-        if (!isLoggedIn) return '/login';
+        if (!isLoggedIn) return '/home';
         final user = authState.user;
-        if (user != null) {
-          if (user.isVendor) {
-            return user.vendorProfile?.vettingStatus == 'approved'
-                ? '/vendor'
-                : '/vendor/onboarding';
-          }
-          return '/home';
+        if (user != null && user.isVendor) {
+          return user.vendorProfile?.vettingStatus == 'approved'
+              ? '/vendor'
+              : '/vendor/onboarding';
         }
         return '/home';
       }
@@ -83,22 +102,29 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Don't redirect while loading for other routes
       if (isLoading) return null;
 
-      // Auth-only routes (exclude splash since handled above)
+      // Auth routes
       final isAuthRoute = location == '/login' || location == '/register';
 
+      // Check if current route is protected
+      final isProtectedRoute = protectedRoutes.any((route) =>
+        location == route || location.startsWith('$route/')
+      );
+
+      // Check if current route allows guests (product detail, category)
+      final isGuestAllowed = guestRoutes.contains(location) ||
+          location.startsWith('/product/') ||
+          location.startsWith('/category/');
+
       // If not logged in and trying to access protected route
-      if (!isLoggedIn && !isAuthRoute) return '/login';
+      if (!isLoggedIn && isProtectedRoute) return '/login';
 
       // If logged in and on auth route, redirect to appropriate dashboard
       if (isLoggedIn && isAuthRoute) {
         final user = authState.user;
-        if (user != null) {
-          if (user.isVendor) {
-            return user.vendorProfile?.vettingStatus == 'approved'
-                ? '/vendor'
-                : '/vendor/onboarding';
-          }
-          return '/home';
+        if (user != null && user.isVendor) {
+          return user.vendorProfile?.vettingStatus == 'approved'
+              ? '/vendor'
+              : '/vendor/onboarding';
         }
         return '/home';
       }

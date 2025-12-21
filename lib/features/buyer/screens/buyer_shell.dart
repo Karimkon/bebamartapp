@@ -23,10 +23,10 @@ class BuyerBottomNav extends StatelessWidget {
 
   int _calculateSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
-    if (location == '/') return 0;
+    if (location == '/' || location == '/home') return 0;
     if (location == '/cart') return 1;
     if (location == '/wishlist') return 2;
-    if (location == '/orders') return 3;
+    if (location == '/orders' || location == '/buyer/orders') return 3;
     if (location == '/profile') return 4;
     return 0;
   }
@@ -34,7 +34,7 @@ class BuyerBottomNav extends StatelessWidget {
   void _onItemTapped(BuildContext context, int index) {
     switch (index) {
       case 0:
-        context.go('/');
+        context.go('/home');
         break;
       case 1:
         context.go('/cart');

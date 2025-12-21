@@ -8,19 +8,19 @@ import '../../auth/providers/auth_provider.dart';
 final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) async {
   print('🔄 categoriesProvider: Fetching categories...');
   final api = ref.watch(apiClientProvider);
-  
+
   try {
     final response = await api.get(ApiEndpoints.categories);
     print('📦 categoriesProvider: Response status: ${response.statusCode}');
     print('📦 categoriesProvider: Response data type: ${response.data.runtimeType}');
-    
+
     if (response.statusCode == 200) {
       List<dynamic> categoriesData = [];
-      
+
       // Handle different response formats
       if (response.data is Map) {
         final dataMap = response.data as Map;
-        
+
         if (dataMap['success'] == true && dataMap['data'] != null) {
           // Format: {success: true, data: [...]}
           final data = dataMap['data'];
@@ -37,28 +37,19 @@ final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) async {
         categoriesData = response.data;
         print('✅ Response is direct list with ${categoriesData.length} categories');
       }
-      
+
       if (categoriesData.isEmpty) {
         print('⚠️ No categories found in response');
         return [];
       }
-      
+
       try {
         final categories = <CategoryModel>[];
         for (var item in categoriesData) {
           if (item is Map<String, dynamic>) {
             try {
-              final category = CategoryModel(
-                id: item['id'] is int ? item['id'] : int.tryParse(item['id'].toString()) ?? 0,
-                name: item['name']?.toString() ?? 'Unknown Category',
-                slug: item['slug']?.toString() ?? 'unknown',
-                description: item['description']?.toString(),
-                icon: item['icon']?.toString() ?? 'category',
-                image: item['image']?.toString(),
-                isActive: item['is_active'] ?? true,
-                listingsCount: item['listings_count'] is int ? item['listings_count'] : null,
-                parentId: item['parent_id'] is int ? item['parent_id'] : null,
-              );
+              // Use fromJson to properly parse categories with children
+              final category = CategoryModel.fromJson(item);
               if (category.id != 0) {
                 categories.add(category);
               }
@@ -67,15 +58,22 @@ final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) async {
             }
           }
         }
-        
-        print('✅ Successfully parsed ${categories.length} categories');
-        return categories;
+
+        // Client-side fallback: filter to only show parent categories (parent_id == null)
+        // This ensures proper display even if API returns child categories
+        final parentCategories = categories.where((c) => c.parentId == null).toList();
+
+        // If we have parent categories, return them; otherwise return all (legacy fallback)
+        final result = parentCategories.isNotEmpty ? parentCategories : categories;
+
+        print('✅ Successfully parsed ${result.length} parent categories (filtered from ${categories.length} total)');
+        return result;
       } catch (e) {
         print('❌ Error parsing categories: $e');
         return [];
       }
     }
-    
+
     print('❌ Failed to load categories: ${response.statusCode}');
     return [];
   } on DioException catch (e) {

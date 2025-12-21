@@ -134,21 +134,34 @@ class CategoryModel {
   
   IconData get iconData {
     // Map Laravel FontAwesome icon names to Flutter Icons
+    // Based on actual database icons: tv, mobile-alt, tools, tshirt, glasses, shoe-prints, suitcase, gem, child, home, spa, rings, user, headphones, laptop, desktop, car, futbol
     final iconMap = {
-      'car': Icons.directions_car,
-      'laptop': Icons.laptop,
+      // Database icons
+      'tv': Icons.tv,
       'mobile-alt': Icons.phone_android,
       'mobile': Icons.phone_android,
-      'couch': Icons.chair,
+      'tools': Icons.build,
       'tshirt': Icons.checkroom,
-      'blender': Icons.kitchen,
-      'futbol': Icons.sports_soccer,
-      'baby-carriage': Icons.child_friendly,
+      'glasses': Icons.visibility,
+      'shoe-prints': Icons.directions_walk,
+      'suitcase': Icons.luggage,
       'gem': Icons.diamond,
+      'child': Icons.child_care,
+      'home': Icons.home,
+      'spa': Icons.spa,
+      'rings': Icons.favorite,
+      'user': Icons.person,
+      'headphones': Icons.headphones,
+      'laptop': Icons.laptop,
+      'desktop': Icons.computer,
+      'car': Icons.directions_car,
+      'futbol': Icons.sports_soccer,
+
+      // Additional mappings
+      'baby-carriage': Icons.child_friendly,
       'book': Icons.menu_book,
       'pills': Icons.medical_services,
       'gamepad': Icons.videogame_asset,
-      'home': Icons.home,
       'store': Icons.store,
       'shop': Icons.store,
       'tag': Icons.local_offer,
@@ -161,7 +174,6 @@ class CategoryModel {
       'map-marker-alt': Icons.location_on,
       'location': Icons.location_on,
       'briefcase': Icons.business_center,
-      'tools': Icons.build,
       'question-circle': Icons.help,
       'help': Icons.help,
       'comments': Icons.comment,
@@ -173,7 +185,6 @@ class CategoryModel {
       'th-large': Icons.grid_view,
       'grid': Icons.grid_view,
       'search': Icons.search,
-      'user': Icons.person,
       'person': Icons.person,
       'heart': Icons.favorite,
       'favorite': Icons.favorite,
@@ -189,8 +200,10 @@ class CategoryModel {
       'books': Icons.menu_book,
       'health': Icons.medical_services,
       'games': Icons.videogame_asset,
+      'couch': Icons.chair,
+      'blender': Icons.kitchen,
     };
-    
+
     if (icon == null || icon!.isEmpty) return Icons.category;
     return iconMap[icon!.toLowerCase().replaceAll('fa-', '')] ?? Icons.category;
   }
