@@ -6,6 +6,7 @@ class UserModel {
   final String? name;
   final String phone;
   final String? email;
+  final String? avatar;
   final DateTime? emailVerifiedAt;
   final String role; // buyer, vendor_local, vendor_international, admin, logistics, clearing_agent
   final bool isActive;
@@ -13,12 +14,13 @@ class UserModel {
   final VendorProfileModel? vendorProfile;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  
+
   UserModel({
     required this.id,
     this.name,
     required this.phone,
     this.email,
+    this.avatar,
     this.emailVerifiedAt,
     required this.role,
     this.isActive = true,
@@ -37,6 +39,7 @@ class UserModel {
       name: data['name'] as String?,
       phone: (data['phone'] as String?) ?? '', // FIXED: Handle null phone
       email: data['email'] as String?,
+      avatar: data['avatar'] as String?,
       emailVerifiedAt: data['email_verified_at'] != null
           ? DateTime.tryParse(data['email_verified_at'].toString())
           : null,
@@ -61,6 +64,7 @@ class UserModel {
       'name': name,
       'phone': phone,
       'email': email,
+      'avatar': avatar,
       'email_verified_at': emailVerifiedAt?.toIso8601String(),
       'role': role,
       'is_active': isActive,
@@ -110,6 +114,7 @@ class UserModel {
     String? name,
     String? phone,
     String? email,
+    String? avatar,
     DateTime? emailVerifiedAt,
     String? role,
     bool? isActive,
@@ -123,6 +128,7 @@ class UserModel {
       name: name ?? this.name,
       phone: phone ?? this.phone,
       email: email ?? this.email,
+      avatar: avatar ?? this.avatar,
       emailVerifiedAt: emailVerifiedAt ?? this.emailVerifiedAt,
       role: role ?? this.role,
       isActive: isActive ?? this.isActive,

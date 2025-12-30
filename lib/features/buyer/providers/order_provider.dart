@@ -389,10 +389,10 @@ final checkoutProvider = StateNotifierProvider<CheckoutNotifier, CheckoutState>(
 // Single order detail provider
 final orderDetailProvider = FutureProvider.family<OrderModel?, int>((ref, orderId) async {
   final api = ref.watch(apiClientProvider);
-  
+
   try {
     final response = await api.get(ApiEndpoints.orderDetail(orderId));
-    
+
     if (response.statusCode == 200 && response.data is Map) {
       if (response.data['success'] == true && response.data['data'] != null) {
         return OrderModel.fromJson(response.data['data']);
@@ -404,3 +404,34 @@ final orderDetailProvider = FutureProvider.family<OrderModel?, int>((ref, orderI
     return null;
   }
 });
+
+// Confirm delivery for COD orders
+Future<Map<String, dynamic>> confirmDelivery(ApiClient api, int orderId) async {
+  try {
+    final response = await api.post(ApiEndpoints.orderConfirmDelivery(orderId));
+
+    if (response.statusCode == 200 && response.data is Map) {
+      return {
+        'success': response.data['success'] ?? false,
+        'message': response.data['message'] ?? 'Delivery confirmed',
+        'order': response.data['data'] != null
+            ? OrderModel.fromJson(response.data['data'])
+            : null,
+      };
+    }
+    return {
+      'success': false,
+      'message': response.data?['message'] ?? 'Failed to confirm delivery',
+    };
+  } on DioException catch (e) {
+    return {
+      'success': false,
+      'message': e.response?.data?['message'] ?? e.message ?? 'Failed to confirm delivery',
+    };
+  } catch (e) {
+    return {
+      'success': false,
+      'message': e.toString(),
+    };
+  }
+}

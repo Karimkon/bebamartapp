@@ -395,10 +395,19 @@ class _VariationModalState extends ConsumerState<VariationModal> {
 
     setState(() => isAdding = true);
 
+    // Debug: Log what we're about to send
+    debugPrint('🛒 VariationModal: Adding to cart');
+    debugPrint('   listingId: ${widget.listingId}');
+    debugPrint('   quantity: $quantity');
+    debugPrint('   selectedVariant: $selectedVariant');
+    debugPrint('   selectedVariant?.id: ${selectedVariant?.id}');
+    debugPrint('   selectedColor: $selectedColor');
+    debugPrint('   selectedSize: $selectedSize');
+
     try {
       final cartNotifier = ref.read(cartProvider.notifier);
-      
-      await cartNotifier.addToCart(
+
+      final success = await cartNotifier.addToCart(
         widget.listingId,
         quantity,
         variantId: selectedVariant?.id,
@@ -408,31 +417,57 @@ class _VariationModalState extends ConsumerState<VariationModal> {
         },
       );
 
+      debugPrint('🛒 VariationModal: Add to cart result: $success');
+
       setState(() => isAdding = false);
-      
-      if (widget.onSuccess != null) {
-        widget.onSuccess!();
-      }
-      
-      // Navigate based on action
-      if (widget.isBuyNow) {
-        Navigator.pop(context);
-        context.push('/checkout');
+
+      if (success) {
+        if (widget.onSuccess != null) {
+          widget.onSuccess!();
+        }
+
+        // Navigate based on action
+        if (widget.isBuyNow) {
+          Navigator.pop(context);
+          context.push('/checkout');
+        } else {
+          Navigator.pop(context);
+          // Only show snackbar if no onSuccess callback (to avoid duplicate snackbars)
+          if (widget.onSuccess == null) {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Added to cart successfully!'),
+                backgroundColor: AppColors.success,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
+                margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
+              ),
+            );
+          }
+        }
       } else {
-        Navigator.pop(context);
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Added to cart successfully!'),
-            backgroundColor: AppColors.success,
+          SnackBar(
+            content: const Text('Failed to add to cart. Please try again.'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
           ),
         );
       }
     } catch (e) {
       setState(() => isAdding = false);
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to add to cart: $e'),
           backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
         ),
       );
     }

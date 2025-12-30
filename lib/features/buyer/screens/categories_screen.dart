@@ -156,7 +156,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Category Icon
+            // Category Icon - using iconData from model (maps backend icon names to Flutter icons)
             Container(
               width: 60,
               height: 60,
@@ -166,7 +166,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
-                _getCategoryIcon(category.icon),
+                category.iconData,  // Use model's iconData getter for proper icon mapping
                 color: AppColors.categoryColors[category.id % AppColors.categoryColors.length],
                 size: 30,
               ),
@@ -328,28 +328,4 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     );
   }
 
-  IconData _getCategoryIcon(String? iconName) {
-    final icons = {
-      'electronics': Icons.electrical_services,
-      'fashion': Icons.checkroom,
-      'home': Icons.home,
-      'kitchen': Icons.kitchen,
-      'sports': Icons.sports_soccer,
-      'beauty': Icons.spa,
-      'books': Icons.book,
-      'phones': Icons.phone_iphone,
-      'computers': Icons.computer,
-      'games': Icons.games,
-      'cars': Icons.directions_car,
-      'food': Icons.restaurant,
-      'drinks': Icons.local_drink,
-      'health': Icons.health_and_safety,
-      'baby': Icons.child_care,
-      'pets': Icons.pets,
-      'garden': Icons.yard,
-      'tools': Icons.build,
-    };
-
-    return icons[iconName] ?? Icons.category;
-  }
 }

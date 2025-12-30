@@ -1,4 +1,4 @@
-package com.example.bebamart
+package com.bebamart.app
 
 import io.flutter.embedding.android.FlutterActivity
 

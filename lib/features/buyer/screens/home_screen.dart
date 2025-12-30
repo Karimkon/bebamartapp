@@ -23,6 +23,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _selectedCategorySlug;
+  CategoryModel? _selectedCategory; // Store full category for subcategory access
   final PageController _bannerController = PageController();
   int _currentBannerPage = 0;
 
@@ -48,7 +49,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _handleRefresh() async {
     ref.invalidate(allListingsProvider);
     ref.invalidate(categoriesProvider);
-    setState(() => _selectedCategorySlug = null);
+    setState(() {
+      _selectedCategorySlug = null;
+      _selectedCategory = null;
+    });
     await _loadInitialData();
   }
 
@@ -186,8 +190,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   ScaffoldMessenger.of(context).removeCurrentSnackBar();
 
   try {
+    // Always load variations first if not already loaded
     final variationState = ref.read(variationProvider(listingId));
-    if (variationState.isLoading) {
+    if (!variationState.hasVariations && variationState.variations.isEmpty && !variationState.isLoading) {
       await ref.read(variationProvider(listingId).notifier).loadVariations(listingId);
     }
 
@@ -209,21 +214,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             basePrice: listing?.price ?? 0,
             onSuccess: () {
               if (mounted) {
-                // CLEAR BEFORE SHOWING
-                ScaffoldMessenger.of(context).removeCurrentSnackBar();
+                ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: const Row(
                       children: [
                         Icon(Icons.check_circle, color: AppColors.white),
                         SizedBox(width: 12),
-                        Text('Added to cart!'),
+                        Expanded(child: Text('Added to cart!')),
                       ],
                     ),
                     backgroundColor: AppColors.success,
                     behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 2), // GO AWAY IN 2 SECONDS
-                    margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20), // DON'T BLOCK NAV
+                    duration: const Duration(seconds: 2),
+                    margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 );
@@ -241,38 +245,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   try {
     final success = await ref.read(cartProvider.notifier).addToCart(listingId, 1);
     if (mounted && success) {
-      // CLEAR BEFORE SHOWING
-      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Row(
             children: [
               Icon(Icons.check_circle, color: AppColors.white),
               SizedBox(width: 12),
-              Text('Added to cart!'),
+              Expanded(child: Text('Added to cart!')),
             ],
           ),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2), // GO AWAY IN 2 SECONDS
-          margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20), // DON'T BLOCK NAV
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          action: SnackBarAction(
-            label: 'View Cart',
-            textColor: AppColors.white,
-            onPressed: () => context.push('/cart'),
-          ),
         ),
       );
     }
   } catch (e) {
     if (mounted) {
-      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed: $e'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
           margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
         ),
       );
@@ -291,6 +290,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final success = await ref.read(wishlistProvider.notifier).toggleWishlist(listingId);
       if (mounted && success) {
         final isNowWishlisted = ref.read(wishlistProvider).isWishlisted(listingId);
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -305,6 +305,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             backgroundColor: isNowWishlisted ? AppColors.primary : AppColors.textSecondary,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -313,10 +315,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     } catch (e) {
       if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed: $e'),
             backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -797,7 +801,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return GestureDetector(
       onTap: () {
         setState(() {
-          _selectedCategorySlug = _selectedCategorySlug == category.slug ? null : category.slug;
+          if (_selectedCategorySlug == category.slug) {
+            _selectedCategorySlug = null;
+            _selectedCategory = null;
+          } else {
+            _selectedCategorySlug = category.slug;
+            _selectedCategory = category;
+          }
         });
       },
       child: Container(
@@ -884,30 +894,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _selectedCategorySlug != null ? 'Filtered Products' : 'Popular Products',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              if (_selectedCategorySlug == null)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  'Based on your interests',
+                  _selectedCategory != null ? _selectedCategory!.name : 'Popular Products',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  _selectedCategory != null
+                      ? 'Products in ${_selectedCategory!.name} & subcategories'
+                      : 'Based on your interests',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
           if (_selectedCategorySlug != null)
             GestureDetector(
-              onTap: () => setState(() => _selectedCategorySlug = null),
+              onTap: () => setState(() {
+                _selectedCategorySlug = null;
+                _selectedCategory = null;
+              }),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -938,9 +956,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildProductsGrid(AsyncValue<List<ListingModel>> listingsAsync) {
     return listingsAsync.when(
       data: (listings) {
-        final filteredListings = _selectedCategorySlug != null
-            ? listings.where((l) => l.category?.slug == _selectedCategorySlug).toList()
-            : listings;
+        List<ListingModel> filteredListings;
+
+        if (_selectedCategory != null) {
+          // Get all child category slugs for this parent category
+          final childSlugs = _selectedCategory!.children.map((c) => c.slug).toSet();
+
+          // Filter products that belong to parent category OR any of its subcategories
+          filteredListings = listings.where((listing) {
+            final listingCategorySlug = listing.category?.slug;
+            final listingCategoryParentId = listing.category?.parentId;
+
+            // Match if:
+            // 1. Product is directly in the selected category
+            // 2. Product's category slug is in the child slugs
+            // 3. Product's category has parentId matching selected category's id
+            return listingCategorySlug == _selectedCategorySlug ||
+                   childSlugs.contains(listingCategorySlug) ||
+                   listingCategoryParentId == _selectedCategory!.id;
+          }).toList();
+        } else {
+          filteredListings = listings;
+        }
 
         if (filteredListings.isEmpty) {
           return SliverToBoxAdapter(child: _buildEmptyState());

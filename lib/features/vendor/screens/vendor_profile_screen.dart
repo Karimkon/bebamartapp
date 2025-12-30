@@ -121,7 +121,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
             children: [
               CircleAvatar(
                 radius: 50,
-                backgroundColor: Colors.white.withOpacity(0.2),
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
                 backgroundImage: profile.logo != null
                     ? NetworkImage(_buildImageUrl(profile.logo!))
                     : null,
@@ -141,7 +141,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 4,
                         ),
                       ],
@@ -166,7 +166,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
           const SizedBox(height: 4),
           Text(
             user?.email ?? '',
-            style: TextStyle(color: Colors.white.withOpacity(0.8)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
           ),
           const SizedBox(height: 12),
 
@@ -174,7 +174,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: _getStatusColor(profile.vettingStatus).withOpacity(0.2),
+              color: _getStatusColor(profile.vettingStatus).withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: _getStatusColor(profile.vettingStatus)),
             ),
@@ -211,7 +211,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -296,27 +296,21 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
             icon: Icons.account_balance_wallet_outlined,
             title: 'Wallet & Payouts',
             subtitle: 'Manage your earnings',
-            onTap: () {
-              // TODO: Navigate to wallet
-            },
+            onTap: () => context.push('/vendor/wallet'),
           ),
           _buildDivider(),
           _buildMenuItem(
             icon: Icons.notifications_outlined,
             title: 'Notifications',
             subtitle: 'Manage notification preferences',
-            onTap: () {
-              // TODO: Navigate to notifications settings
-            },
+            onTap: () => context.push('/vendor/notifications'),
           ),
           _buildDivider(),
           _buildMenuItem(
             icon: Icons.help_outline,
             title: 'Help & Support',
             subtitle: 'Get help with your account',
-            onTap: () {
-              // TODO: Navigate to help
-            },
+            onTap: () => context.push('/profile/help'),
           ),
         ],
       ),
@@ -333,7 +327,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
       leading: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.1),
+          color: AppColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, color: AppColors.primary, size: 22),
@@ -419,7 +413,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
 
       if (image != null) {
         final success = await ref.read(updateProfileProvider.notifier).updateProfile(
-              logo: File(image.path),
+              avatar: File(image.path),
             );
 
         if (success && mounted) {
@@ -427,13 +421,18 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
             SnackBar(
               content: const Text('Profile image updated'),
               backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
             ),
           );
         }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update image: $e')),
+        SnackBar(
+          content: Text('Failed to update image: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }

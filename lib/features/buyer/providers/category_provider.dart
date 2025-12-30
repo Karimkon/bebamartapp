@@ -6,13 +6,13 @@ import '../../../shared/models/category_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
 final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) async {
-  print('🔄 categoriesProvider: Fetching categories...');
+  print('🔄 categoriesProvider: Fetching categories from API...');
   final api = ref.watch(apiClientProvider);
 
   try {
     final response = await api.get(ApiEndpoints.categories);
     print('📦 categoriesProvider: Response status: ${response.statusCode}');
-    print('📦 categoriesProvider: Response data type: ${response.data.runtimeType}');
+    print('📦 categoriesProvider: Full URL: ${ApiEndpoints.categories}');
 
     if (response.statusCode == 200) {
       List<dynamic> categoriesData = [];
@@ -20,16 +20,29 @@ final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) async {
       // Handle different response formats
       if (response.data is Map) {
         final dataMap = response.data as Map;
+        print('📦 Response keys: ${dataMap.keys.toList()}');
+
+        // Log the message if present (from updated API)
+        if (dataMap['message'] != null) {
+          print('📦 API Message: ${dataMap['message']}');
+        }
+        if (dataMap['count'] != null) {
+          print('📦 API Count: ${dataMap['count']}');
+        }
 
         if (dataMap['success'] == true && dataMap['data'] != null) {
-          // Format: {success: true, data: [...]}
           final data = dataMap['data'];
           if (data is List) {
             categoriesData = data;
-            print('✅ Found ${categoriesData.length} categories in success.data');
+            print('✅ Found ${categoriesData.length} categories in response');
+
+            // Log first 3 categories for debugging
+            for (int i = 0; i < categoriesData.length && i < 3; i++) {
+              final cat = categoriesData[i];
+              print('   📂 Category $i: ${cat['name']} (id=${cat['id']}, parent_id=${cat['parent_id']}, children=${(cat['children'] as List?)?.length ?? 0})');
+            }
           }
         } else if (dataMap['data'] != null && dataMap['data'] is List) {
-          // Format: {data: [...]}
           categoriesData = dataMap['data'] as List;
           print('✅ Found ${categoriesData.length} categories in data key');
         }
@@ -48,25 +61,35 @@ final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) async {
         for (var item in categoriesData) {
           if (item is Map<String, dynamic>) {
             try {
-              // Use fromJson to properly parse categories with children
               final category = CategoryModel.fromJson(item);
               if (category.id != 0) {
                 categories.add(category);
+                // Log each category's parent_id
+                print('   ✅ Parsed: ${category.name} (id=${category.id}, parentId=${category.parentId}, children=${category.children.length})');
               }
             } catch (e) {
-              print('⚠️ Error parsing individual category: $e');
+              print('⚠️ Error parsing category: $e');
+              print('   Raw data: $item');
             }
           }
         }
 
-        // Client-side fallback: filter to only show parent categories (parent_id == null)
-        // This ensures proper display even if API returns child categories
+        // IMPORTANT: Only show parent categories (parent_id == null)
         final parentCategories = categories.where((c) => c.parentId == null).toList();
 
-        // If we have parent categories, return them; otherwise return all (legacy fallback)
+        print('📊 Total parsed: ${categories.length}');
+        print('📊 Parent categories (parentId==null): ${parentCategories.length}');
+        print('📊 Child categories (parentId!=null): ${categories.length - parentCategories.length}');
+
+        // If API correctly returns only parents, use them
+        // If API returns mixed, filter to parents only
         final result = parentCategories.isNotEmpty ? parentCategories : categories;
 
-        print('✅ Successfully parsed ${result.length} parent categories (filtered from ${categories.length} total)');
+        print('✅ Returning ${result.length} categories');
+        for (var cat in result.take(5)) {
+          print('   📁 ${cat.name} (${cat.children.length} subcategories, icon=${cat.icon})');
+        }
+
         return result;
       } catch (e) {
         print('❌ Error parsing categories: $e');

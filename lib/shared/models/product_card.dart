@@ -244,12 +244,15 @@ class _ProductCardState extends ConsumerState<ProductCard> {
           productTitle: widget.title,
           basePrice: widget.price,
           onSuccess: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Added to cart successfully!'),
-                backgroundColor: AppColors.success,
-              ),
-            );
+            ScaffoldMessenger.of(context)
+              ..clearSnackBars()
+              ..showSnackBar(
+                const SnackBar(
+                  content: Text('Added to cart successfully!'),
+                  backgroundColor: AppColors.success,
+                  duration: Duration(seconds: 2),
+                ),
+              );
           },
         ),
       );
@@ -263,21 +266,27 @@ class _ProductCardState extends ConsumerState<ProductCard> {
         );
         
         setState(() => _isAdding = false);
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Added to cart successfully!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Added to cart successfully!'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 2),
+            ),
+          );
       } catch (e) {
         setState(() => _isAdding = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to add to cart: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('Failed to add to cart: $e'),
+              backgroundColor: AppColors.error,
+              duration: Duration(seconds: 2),
+            ),
+          );
       }
     }
   }

@@ -1,7 +1,10 @@
 // lib/features/auth/screens/register_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/widgets/custom_widgets.dart';
@@ -26,6 +29,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreedToTerms = false;
+  bool _isGoogleLoading = false;
+  File? _profileImage;
+  final _imagePicker = ImagePicker();
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+  );
+
+  Future<void> _pickProfileImage() async {
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+      );
+      if (image != null) {
+        setState(() => _profileImage = File(image.path));
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -40,7 +66,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (!_agreedToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -51,23 +77,93 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
 
-    final success = await ref.read(authProvider.notifier).register(
+    final result = await ref.read(authProvider.notifier).register(
       name: _nameController.text.trim(),
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim(),
       password: _passwordController.text,
       passwordConfirmation: _confirmPasswordController.text,
       role: widget.isVendor ? 'vendor_local' : 'buyer',
+      profileImage: _profileImage,
     );
 
-    if (success && mounted) {
-      final authState = ref.read(authProvider);
-      if (widget.isVendor) {
-        context.go('/vendor/onboarding');
-      } else if (authState.isVendor) {
-        context.go('/vendor');
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      // Check if OTP verification is required
+      if (result['requires_verification'] == true) {
+        final email = result['email'] ?? _emailController.text.trim();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Please verify your email'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        // Navigate to OTP verification screen with profile image path
+        context.push('/verify-otp', extra: {
+          'email': email,
+          'profileImagePath': _profileImage?.path,
+        });
       } else {
-        context.go('/');
+        // No OTP required - proceed to app
+        final authState = ref.read(authProvider);
+        if (widget.isVendor) {
+          context.go('/vendor/onboarding');
+        } else if (authState.isVendor) {
+          context.go('/vendor');
+        } else {
+          context.go('/');
+        }
+      }
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+      if (googleUser == null) {
+        setState(() => _isGoogleLoading = false);
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      final success = await ref.read(authProvider.notifier).signInWithGoogle(
+        email: googleUser.email,
+        name: googleUser.displayName ?? googleUser.email.split('@').first,
+        googleId: googleUser.id,
+        avatar: googleUser.photoUrl,
+        idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
+      );
+
+      if (!mounted) return;
+
+      if (success) {
+        final authState = ref.read(authProvider);
+        if (widget.isVendor) {
+          context.go('/vendor/onboarding');
+        } else if (authState.isVendor) {
+          context.go('/vendor');
+        } else {
+          context.go('/');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google Sign-In failed: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
       }
     }
   }
@@ -98,7 +194,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.secondary.withOpacity(0.1),
+                      color: AppColors.secondary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Row(
@@ -115,6 +211,48 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Profile Picture Picker for Vendors
+                  Center(
+                    child: GestureDetector(
+                      onTap: _pickProfileImage,
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 50,
+                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                            backgroundImage: _profileImage != null
+                                ? FileImage(_profileImage!)
+                                : null,
+                            child: _profileImage == null
+                                ? const Icon(Icons.person, size: 50, color: AppColors.primary)
+                                : null,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Center(
+                    child: Text(
+                      'Add Profile Picture',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -317,7 +455,69 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   isLoading: authState.isLoading,
                 ),
                 const SizedBox(height: 24),
-                
+
+                // Divider
+                const Row(
+                  children: [
+                    Expanded(child: Divider()),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'OR',
+                        style: TextStyle(
+                          color: AppColors.textTertiary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider()),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Google Sign-In Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isGoogleLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Image.network(
+                                'https://www.google.com/favicon.ico',
+                                width: 24,
+                                height: 24,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(Icons.g_mobiledata, size: 24),
+                              ),
+                              const SizedBox(width: 12),
+                              const Text(
+                                'Continue with Google',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
                 // Login Link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,

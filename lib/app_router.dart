@@ -8,6 +8,7 @@ import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/splash_screen.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
+import 'features/auth/screens/otp_verification_screen.dart';
 
 // Buyer
 import 'features/buyer/screens/buyer_shell.dart';
@@ -22,6 +23,12 @@ import 'features/buyer/screens/orders_screen.dart';
 import 'features/buyer/screens/order_detail_screen.dart';
 import 'features/buyer/screens/profile_screen.dart';
 import 'features/buyer/screens/search_screen.dart';
+import 'features/buyer/screens/edit_profile_screen.dart';
+import 'features/buyer/screens/shipping_addresses_screen.dart';
+import 'features/buyer/screens/wallet_screen.dart';
+import 'features/buyer/screens/my_reviews_screen.dart';
+import 'features/buyer/screens/help_support_screen.dart';
+import 'features/buyer/screens/settings_screen.dart';
 
 // Vendor
 import 'features/vendor/screens/vendor_shell.dart';
@@ -32,6 +39,9 @@ import 'features/vendor/screens/vendor_orders_screen.dart';
 import 'features/vendor/screens/vendor_order_detail_screen.dart';
 import 'features/vendor/screens/vendor_profile_screen.dart';
 import 'features/vendor/screens/vendor_onboarding_screen.dart';
+import 'features/vendor/screens/vendor_wallet_screen.dart';
+import 'features/vendor/screens/vendor_notifications_screen.dart';
+import 'features/vendor/screens/vendor_analytics_screen.dart';
 
 // Chat
 import 'features/chat/screens/chat_list_screen.dart';
@@ -147,6 +157,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
       ),
+      GoRoute(
+        path: '/verify-otp',
+        builder: (context, state) {
+          // Support both old format (String) and new format (Map)
+          String email = '';
+          String? profileImagePath;
+
+          if (state.extra is String) {
+            email = state.extra as String;
+          } else if (state.extra is Map) {
+            final data = state.extra as Map;
+            email = data['email'] ?? '';
+            profileImagePath = data['profileImagePath'];
+          }
+
+          return OtpVerificationScreen(
+            email: email,
+            profileImagePath: profileImagePath,
+          );
+        },
+      ),
 
       // ==================== BUYER ROUTES ====================
       ShellRoute(
@@ -228,6 +259,32 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SearchScreen(),
       ),
 
+      // Profile sub-routes
+      GoRoute(
+        path: '/profile/edit',
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/profile/addresses',
+        builder: (context, state) => const ShippingAddressesScreen(),
+      ),
+      GoRoute(
+        path: '/profile/wallet',
+        builder: (context, state) => const WalletScreen(),
+      ),
+      GoRoute(
+        path: '/profile/reviews',
+        builder: (context, state) => const MyReviewsScreen(),
+      ),
+      GoRoute(
+        path: '/profile/help',
+        builder: (context, state) => const HelpSupportScreen(),
+      ),
+      GoRoute(
+        path: '/profile/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+
       // ==================== VENDOR ROUTES ====================
       // Vendor Onboarding (for pending vendors)
       GoRoute(
@@ -258,6 +315,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: '/vendor/messages',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ChatListScreen(),
+            ),
+          ),
+          GoRoute(
             path: '/vendor/profile',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: VendorProfileScreen(),
@@ -284,6 +347,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
           return VendorOrderDetailScreen(orderId: id);
         },
+      ),
+      GoRoute(
+        path: '/vendor/wallet',
+        builder: (context, state) => const VendorWalletScreen(),
+      ),
+      GoRoute(
+        path: '/vendor/notifications',
+        builder: (context, state) => const VendorNotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/vendor/analytics',
+        builder: (context, state) => const VendorAnalyticsScreen(),
       ),
 
       // ==================== CHAT ROUTES ====================

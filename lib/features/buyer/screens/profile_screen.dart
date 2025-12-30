@@ -74,12 +74,12 @@ class ProfileScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             
             // Menu Items
-            _buildMenuItem(context, Icons.person_outline, 'Edit Profile', () {}),
-            _buildMenuItem(context, Icons.location_on_outlined, 'Shipping Addresses', () {}),
-            _buildMenuItem(context, Icons.account_balance_wallet_outlined, 'Wallet', () {}),
-            _buildMenuItem(context, Icons.star_outline, 'My Reviews', () {}),
-            _buildMenuItem(context, Icons.help_outline, 'Help & Support', () {}),
-            _buildMenuItem(context, Icons.settings_outlined, 'Settings', () {}),
+            _buildMenuItem(context, Icons.person_outline, 'Edit Profile', () => context.push('/profile/edit')),
+            _buildMenuItem(context, Icons.location_on_outlined, 'Shipping Addresses', () => context.push('/profile/addresses')),
+            _buildMenuItem(context, Icons.account_balance_wallet_outlined, 'Wallet', () => context.push('/profile/wallet')),
+            _buildMenuItem(context, Icons.star_outline, 'My Reviews', () => context.push('/profile/reviews')),
+            _buildMenuItem(context, Icons.help_outline, 'Help & Support', () => context.push('/profile/help')),
+            _buildMenuItem(context, Icons.settings_outlined, 'Settings', () => context.push('/profile/settings')),
             const SizedBox(height: 16),
             
             // Logout

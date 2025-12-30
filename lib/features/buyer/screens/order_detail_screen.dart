@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/order_model.dart';
 import '../providers/order_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class OrderDetailScreen extends ConsumerStatefulWidget {
   final int orderId;
@@ -18,6 +19,37 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
+  bool _isConfirmingDelivery = false;
+
+  Future<void> _handleConfirmDelivery() async {
+    setState(() => _isConfirmingDelivery = true);
+
+    final api = ref.read(apiClientProvider);
+    final result = await confirmDelivery(api, widget.orderId);
+
+    setState(() => _isConfirmingDelivery = false);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Delivery confirmed!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      // Refresh the order details
+      ref.invalidate(orderDetailProvider(widget.orderId));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Failed to confirm delivery'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final orderAsync = ref.watch(orderDetailProvider(widget.orderId));
@@ -116,6 +148,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           // Vendor Information Card
           if (order.vendor != null) ...[
             _buildVendorCard(order),
+            const SizedBox(height: 16),
+          ],
+
+          // Confirm Delivery Button (for COD orders that are shipped)
+          if (order.canBuyerConfirmDelivery) ...[
+            _buildConfirmDeliveryCard(order),
+            const SizedBox(height: 16),
           ],
 
           const SizedBox(height: 100),
@@ -765,6 +804,107 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfirmDeliveryCard(OrderModel order) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.delivery_dining_outlined,
+                  color: AppColors.success,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Cash on Delivery',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Confirm when you receive and pay',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Have you received this order and paid the delivery person?',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: _isConfirmingDelivery ? null : _handleConfirmDelivery,
+              icon: _isConfirmingDelivery
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: AppColors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.check_circle_outline, color: AppColors.white),
+              label: Text(
+                _isConfirmingDelivery ? 'Confirming...' : 'Confirm Delivery & Payment',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
         ],
       ),

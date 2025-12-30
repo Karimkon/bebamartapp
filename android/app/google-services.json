@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "11597583106",
+    "project_id": "disco-math-482020-e3",
+    "storage_bucket": "disco-math-482020-e3.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:11597583106:android:placeholder",
+        "android_client_info": {
+          "package_name": "com.bebamart.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "11597583106-c72bfr19le2r7ttb0ubjvcka0ulg511c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyPlaceholder"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "11597583106-c72bfr19le2r7ttb0ubjvcka0ulg511c.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

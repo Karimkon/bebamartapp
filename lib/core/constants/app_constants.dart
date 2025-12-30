@@ -13,7 +13,8 @@ class AppConstants {
   //   iOS Simulator: http://127.0.0.1:8000
   //   Physical Device: http://YOUR_COMPUTER_IP:8000
   // For production: https://yourdomain.com
-  static const String baseUrl = 'https://bebamart.com/';
+  // static const String baseUrl = 'https://bebamart.com';
+  static const String baseUrl = 'https://bebamart.com';
 
   // API base URL - all API calls go through /api
   static const String apiUrl = '$baseUrl/api';
@@ -81,7 +82,7 @@ class AppConstants {
   
   // Contact
   static const String supportEmail = 'support@bebamart.com';
-  static const String supportPhone = '+256700000000';
+  static const String supportPhone = '0707208954';
 }
 
 // API Endpoints - ALL use /api prefix for mobile app
@@ -90,11 +91,15 @@ class ApiEndpoints {
   static const String login = '/api/login';
   static const String register = '/api/register';
   static const String logout = '/api/logout';
-  
+  static const String verifyOtp = '/api/verify-otp';
+  static const String resendOtp = '/api/resend-otp';
+  static const String googleAuth = '/api/auth/google';
+
   // User
   static const String user = '/api/user';
   static const String updateProfile = '/api/user/profile';
   static const String changePassword = '/api/user/change-password';
+  static const String myReviews = '/api/reviews/my';
   
   // Categories
   static const String categories = '/api/categories';
@@ -132,6 +137,7 @@ class ApiEndpoints {
   static String orderPayWithWallet(int id) => '/api/orders/$id/pay-with-wallet';
   static String orderCancel(int id) => '/api/orders/$id/cancel';
   static String orderConfirmDelivery(int id) => '/api/orders/$id/confirm-delivery';
+  static String orderConfirmDeliveryBuyer(int id) => '/api/orders/$id/confirm-delivery';
   
   // Shipping Addresses
   static const String addresses = '/api/addresses';
@@ -193,7 +199,12 @@ class ApiEndpoints {
   // Vendor Analytics
   static const String vendorAnalytics = '/api/vendor/analytics';
   static const String vendorPerformance = '/api/vendor/performance';
-  
+
+  // Vendor Wallet
+  static const String vendorWallet = '/api/vendor/wallet';
+  static const String vendorTransactions = '/api/vendor/transactions';
+  static const String vendorRequestPayout = '/api/vendor/payout';
+
   // Vendor Reviews
   static const String vendorReviews = '/api/vendor/reviews';
   static String vendorReviewRespond(int id) => '/api/vendor/reviews/$id/respond';

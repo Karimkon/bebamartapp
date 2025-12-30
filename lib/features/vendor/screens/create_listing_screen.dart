@@ -18,12 +18,43 @@ class CreateListingScreen extends ConsumerStatefulWidget {
   ConsumerState<CreateListingScreen> createState() => _CreateListingScreenState();
 }
 
+// Variant model for product variations
+class ProductVariant {
+  String? color;
+  String? size;
+  String sku;
+  double price;
+  double? salePrice;
+  int stock;
+
+  ProductVariant({
+    this.color,
+    this.size,
+    this.sku = '',
+    this.price = 0,
+    this.salePrice,
+    this.stock = 1,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'color': color,
+    'size': size,
+    'sku': sku,
+    'price': price,
+    'sale_price': salePrice,
+    'stock': stock,
+  };
+}
+
 class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
+  final _weightController = TextEditingController();
+  final _colorController = TextEditingController();
+  final _sizeController = TextEditingController();
 
   CategoryModel? _selectedCategory;
   String _condition = 'new';
@@ -31,6 +62,12 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   List<String> _existingImageUrls = [];
   List<int> _deleteImageIds = [];
   bool _isLoading = false;
+
+  // Variants
+  bool _enableVariants = false;
+  List<String> _colors = [];
+  List<String> _sizes = [];
+  List<ProductVariant> _variants = [];
 
   bool get isEditing => widget.listingId != null;
 
@@ -51,7 +88,86 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
     _descriptionController.dispose();
     _priceController.dispose();
     _quantityController.dispose();
+    _weightController.dispose();
+    _colorController.dispose();
+    _sizeController.dispose();
     super.dispose();
+  }
+
+  void _addColor() {
+    final color = _colorController.text.trim();
+    if (color.isNotEmpty && !_colors.contains(color)) {
+      setState(() {
+        _colors.add(color);
+        _colorController.clear();
+      });
+    }
+  }
+
+  void _removeColor(String color) {
+    setState(() {
+      _colors.remove(color);
+      // Remove variants with this color
+      _variants.removeWhere((v) => v.color == color);
+    });
+  }
+
+  void _addSize() {
+    final size = _sizeController.text.trim();
+    if (size.isNotEmpty && !_sizes.contains(size)) {
+      setState(() {
+        _sizes.add(size);
+        _sizeController.clear();
+      });
+    }
+  }
+
+  void _removeSize(String size) {
+    setState(() {
+      _sizes.remove(size);
+      // Remove variants with this size
+      _variants.removeWhere((v) => v.size == size);
+    });
+  }
+
+  void _generateVariants() {
+    if (_colors.isEmpty && _sizes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one color or size')),
+      );
+      return;
+    }
+
+    final basePrice = double.tryParse(_priceController.text) ?? 0;
+    final List<ProductVariant> newVariants = [];
+
+    final colorsList = _colors.isEmpty ? [''] : _colors;
+    final sizesList = _sizes.isEmpty ? [''] : _sizes;
+
+    for (final color in colorsList) {
+      for (final size in sizesList) {
+        newVariants.add(ProductVariant(
+          color: color.isEmpty ? null : color,
+          size: size.isEmpty ? null : size,
+          price: basePrice,
+          stock: 1,
+        ));
+      }
+    }
+
+    setState(() {
+      _variants = newVariants;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Generated ${newVariants.length} variants')),
+    );
+  }
+
+  void _removeVariant(int index) {
+    setState(() {
+      _variants.removeAt(index);
+    });
   }
 
   Future<void> _loadExistingListing() async {
@@ -150,6 +266,12 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
           deleteImageIds: _deleteImageIds.isNotEmpty ? _deleteImageIds : null,
         );
       } else {
+        // Prepare variants if enabled
+        List<Map<String, dynamic>>? variationsData;
+        if (_enableVariants && _variants.isNotEmpty) {
+          variationsData = _variants.map((v) => v.toJson()).toList();
+        }
+
         success = await notifier.createListing(
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim(),
@@ -158,6 +280,10 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
           quantity: int.tryParse(_quantityController.text.trim()) ?? 1,
           condition: _condition,
           images: _selectedImages,
+          weight: _weightController.text.trim().isNotEmpty
+              ? double.tryParse(_weightController.text.trim())
+              : null,
+          variations: variationsData,
         );
       }
 
@@ -272,7 +398,7 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                   Expanded(
                     child: _buildTextField(
                       controller: _quantityController,
-                      label: 'Quantity',
+                      label: 'Stock',
                       hint: '1',
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -290,12 +416,26 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+
+              // Weight field
+              _buildTextField(
+                controller: _weightController,
+                label: 'Weight (kg)',
+                hint: 'Optional - e.g., 0.5',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+              ),
               const SizedBox(height: 24),
 
               // Condition Section
               _buildSectionTitle('Condition'),
               const SizedBox(height: 12),
               _buildConditionSelector(),
+              const SizedBox(height: 24),
+
+              // Variants Section
+              _buildVariantsSection(),
               const SizedBox(height: 32),
 
               // Error Message
@@ -537,23 +677,157 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
     );
   }
 
-  Widget _buildCategoryDropdown(List<CategoryModel> categories) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+  Widget _buildCategoryDropdown(List<CategoryModel> parentCategories) {
+    // Build grouped dropdown items - show ONLY subcategories, grouped by parent
+    final List<DropdownMenuItem<CategoryModel>> items = [];
+
+    for (final parent in parentCategories) {
+      if (parent.children.isNotEmpty) {
+        // Add parent as a disabled header
+        items.add(DropdownMenuItem<CategoryModel>(
+          enabled: false,
+          value: null,
+          child: Text(
+            parent.name.toUpperCase(),
+            style: TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ));
+
+        // Add children (subcategories) as selectable items
+        for (final child in parent.children) {
+          items.add(DropdownMenuItem<CategoryModel>(
+            value: child,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Text(child.name),
+            ),
+          ));
+        }
+      }
+    }
+
+    return GestureDetector(
+      onTap: () => _showCategoryPicker(parentCategories),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                _selectedCategory?.name ?? 'Select a category',
+                style: TextStyle(
+                  color: _selectedCategory != null ? AppColors.textPrimary : AppColors.textTertiary,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+          ],
+        ),
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<CategoryModel>(
-          isExpanded: true,
-          value: _selectedCategory,
-          hint: const Text('Select a category'),
-          items: categories.map((category) {
-            return DropdownMenuItem(value: category, child: Text(category.name));
-          }).toList(),
-          onChanged: (value) => setState(() => _selectedCategory = value),
+    );
+  }
+
+  void _showCategoryPicker(List<CategoryModel> parentCategories) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Text(
+                    'Select Category',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Category list
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: parentCategories.length,
+                itemBuilder: (context, index) {
+                  final parent = parentCategories[index];
+                  if (parent.children.isEmpty) return const SizedBox.shrink();
+
+                  return ExpansionTile(
+                    leading: Icon(parent.iconData, color: AppColors.primary),
+                    title: Text(
+                      parent.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      '${parent.children.length} subcategories',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                    children: parent.children.map((child) {
+                      final isSelected = _selectedCategory?.id == child.id;
+                      return ListTile(
+                        leading: Icon(
+                          child.iconData,
+                          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                          size: 20,
+                        ),
+                        title: Text(
+                          child.name,
+                          style: TextStyle(
+                            color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle, color: AppColors.primary)
+                            : null,
+                        onTap: () {
+                          setState(() => _selectedCategory = child);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -568,6 +842,282 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
         const SizedBox(width: 12),
         Expanded(child: _ConditionOption(label: 'Refurbished', isSelected: _condition == 'refurbished', onTap: () => setState(() => _condition = 'refurbished'))),
       ],
+    );
+  }
+
+  Widget _buildVariantsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Toggle for enabling variants
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.shade100),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Checkbox(
+                    value: _enableVariants,
+                    activeColor: AppColors.primary,
+                    onChanged: (value) {
+                      setState(() {
+                        _enableVariants = value ?? false;
+                        if (!_enableVariants) {
+                          _colors.clear();
+                          _sizes.clear();
+                          _variants.clear();
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Enable Product Variants',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        Text(
+                          'Add different colors/sizes with individual prices and stock',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // Variants builder UI
+        if (_enableVariants) ...[
+          const SizedBox(height: 16),
+
+          // Colors Section
+          _buildSectionTitle('Available Colors'),
+          const SizedBox(height: 8),
+          _buildChipsSection(
+            items: _colors,
+            onRemove: _removeColor,
+            chipColor: Colors.blue,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _colorController,
+                  decoration: InputDecoration(
+                    hintText: 'Add color (e.g., Red, Blue)',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  onSubmitted: (_) => _addColor(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _addColor,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Add'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Sizes Section
+          _buildSectionTitle('Available Sizes'),
+          const SizedBox(height: 8),
+          _buildChipsSection(
+            items: _sizes,
+            onRemove: _removeSize,
+            chipColor: Colors.green,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _sizeController,
+                  decoration: InputDecoration(
+                    hintText: 'Add size (e.g., S, M, L, XL)',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  onSubmitted: (_) => _addSize(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _addSize,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Add'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Generate Variants Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _generateVariants,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Generate Variants'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+
+          // Variants List
+          if (_variants.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildSectionTitle('Variants (${_variants.length})'),
+            const SizedBox(height: 8),
+            ..._variants.asMap().entries.map((entry) {
+              final index = entry.key;
+              final variant = entry.value;
+              return _buildVariantCard(variant, index);
+            }),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildChipsSection({
+    required List<String> items,
+    required Function(String) onRemove,
+    required Color chipColor,
+  }) {
+    if (items.isEmpty) {
+      return Text(
+        'No items added yet',
+        style: TextStyle(color: AppColors.textTertiary, fontSize: 14),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: items.map((item) {
+        return Chip(
+          label: Text(item, style: const TextStyle(color: Colors.white)),
+          backgroundColor: chipColor,
+          deleteIcon: const Icon(Icons.close, size: 18, color: Colors.white),
+          onDeleted: () => onRemove(item),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildVariantCard(ProductVariant variant, int index) {
+    final variantName = [variant.color, variant.size].where((e) => e != null && e.isNotEmpty).join(' / ');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  variantName.isEmpty ? 'Variant ${index + 1}' : variantName,
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: () => _removeVariant(index),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Price and Stock
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Price (UGX)',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  controller: TextEditingController(text: variant.price.toString()),
+                  onChanged: (value) {
+                    variant.price = double.tryParse(value) ?? 0;
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Stock',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  controller: TextEditingController(text: variant.stock.toString()),
+                  onChanged: (value) {
+                    variant.stock = int.tryParse(value) ?? 1;
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

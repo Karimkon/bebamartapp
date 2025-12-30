@@ -9,6 +9,7 @@ import '../providers/listing_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../chat/providers/chat_provider.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
   final int productId;
@@ -360,7 +361,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               ],
             ),
           ),
-          TextButton(onPressed: () {}, child: const Text('Chat')),
+          TextButton(
+            onPressed: () => _handleContactVendor(listing),
+            child: const Text('Chat'),
+          ),
         ],
       ),
     );
@@ -569,17 +573,21 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       await ref.read(wishlistProvider.notifier).toggleWishlist(widget.productId);
       if (mounted) {
         final isNowWishlisted = ref.read(wishlistProvider).isWishlisted(widget.productId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isNowWishlisted ? 'Added to wishlist' : 'Removed from wishlist'),
-            backgroundColor: isNowWishlisted ? AppColors.success : AppColors.textSecondary,
-            duration: const Duration(seconds: 1),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(isNowWishlisted ? 'Added to wishlist' : 'Removed from wishlist'),
+              backgroundColor: isNowWishlisted ? AppColors.success : AppColors.textSecondary,
+              duration: const Duration(seconds: 2),
+            ),
+          );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error, duration: const Duration(seconds: 2)));
       }
     }
   }
@@ -624,37 +632,108 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       
       if (mounted && success) {
         print('✅ Successfully added to cart!');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Added to cart!'), 
-            backgroundColor: AppColors.success, 
-            duration: Duration(seconds: 1)
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Added to cart!'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 2)
+            ),
+          );
       } else {
         print('❌ Failed to add to cart (success=false)');
       }
     } catch (e) {
       print('❌ Error adding to cart: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed: $e'), 
-            backgroundColor: AppColors.error
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('Failed: $e'),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 2)
+            ),
+          );
       }
     }
   }
 
   void _showLoginPrompt(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.warning,
-        action: SnackBarAction(label: 'Login', textColor: AppColors.white, onPressed: () => context.push('/login')),
-      ),
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.warning,
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(label: 'Login', textColor: AppColors.white, onPressed: () => context.push('/login')),
+        ),
+      );
+  }
+
+  Future<void> _handleContactVendor(ListingModel listing) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      _showLoginPrompt('Please login to contact the vendor');
+      return;
+    }
+
+    if (listing.vendor == null) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Vendor information not available'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      return;
+    }
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      final conversationId = await ref.read(conversationsProvider.notifier).startConversation(
+        vendorProfileId: listing.vendor!.id,
+        listingId: listing.id,
+      );
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        if (conversationId != null) {
+          context.push('/chat/$conversationId');
+        } else {
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text('Failed to start conversation'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+      }
+    }
   }
 
   void _showVariantPickerModal(ListingModel listing) {
@@ -816,10 +895,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                               try {
                                 final success = await ref.read(cartProvider.notifier).addToCart(widget.productId, _quantity, variantId: _selectedVariant?.id, attributes: {if (_selectedColor != null) 'color': _selectedColor, if (_selectedSize != null) 'size': _selectedSize});
                                 if (mounted && success) {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to cart!'), backgroundColor: AppColors.success, duration: Duration(seconds: 1)));
+                                  ScaffoldMessenger.of(context)
+                                    ..clearSnackBars()
+                                    ..showSnackBar(const SnackBar(content: Text('Added to cart!'), backgroundColor: AppColors.success, duration: Duration(seconds: 2)));
                                 }
                               } catch (e) {
-                                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context)
+                                    ..clearSnackBars()
+                                    ..showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error, duration: Duration(seconds: 2)));
+                                }
                               }
                             } : null,
                             style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48), backgroundColor: AppColors.primary, foregroundColor: AppColors.white, disabledBackgroundColor: AppColors.textTertiary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),

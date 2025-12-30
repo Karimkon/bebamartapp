@@ -174,7 +174,7 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
       crossAxisCount: 2,
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
-      childAspectRatio: 1.5,
+      childAspectRatio: 1.1, // Reduced further to prevent overflow
       children: [
         _StatCard(
           title: 'Total Products',

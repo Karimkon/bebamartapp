@@ -282,13 +282,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
   
-  Future<bool> register({
+  /// Registration result class
+  /// Returns requires_verification: true if OTP verification is needed
+  Future<Map<String, dynamic>> register({
     required String name,
     required String email,
     required String phone,
     required String password,
     required String passwordConfirmation,
     String role = 'buyer',
+    dynamic profileImage,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -301,113 +304,57 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'password_confirmation': passwordConfirmation,
         'role': role,
       });
-      
+
       print('📦 Registration response: ${response.statusCode}');
       print('📦 Registration data: ${response.data}');
-      
-      if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 302) {
-        // Save token if provided by backend
-        final token = response.data is Map 
-            ? (response.data['token'] ?? response.data['access_token']) as String?
-            : null;
-        
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data as Map<String, dynamic>;
+
+        // Check if OTP verification is required
+        if (data['requires_verification'] == true) {
+          state = state.copyWith(isLoading: false);
+          print('📧 OTP verification required for: $email');
+          return {
+            'success': true,
+            'requires_verification': true,
+            'email': data['email'] ?? email,
+            'message': data['message'] ?? 'Please verify your email',
+          };
+        }
+
+        // If no OTP required (legacy flow), proceed with token
+        final token = data['token'] ?? data['access_token'];
         if (token != null && token.isNotEmpty) {
           await _storage.saveToken(token);
           print('💾 Registration token saved');
-        }
 
-        // Get user data
-        final userResponse = await _api.get(ApiEndpoints.user);
-        print('👤 User endpoint after registration: ${userResponse.statusCode}');
-        print('👤 User endpoint data: ${userResponse.data}');
-        
-        if (userResponse.statusCode == 200) {
-          try {
+          // Get user data
+          final userResponse = await _api.get(ApiEndpoints.user);
+          if (userResponse.statusCode == 200) {
             final user = UserModel.fromJson(userResponse.data);
-            print('✅ Registered user parsed: ${user.email}');
-            
             await _storage.saveUser(userResponse.data);
             await _storage.saveUserRole(user.role);
-            
-            state = state.copyWith(
-              status: AuthStatus.authenticated, 
-              user: user, 
-              isLoading: false
-            );
-            print('🎉 Registration successful!');
-            _loadWishlistAfterAuth();
-            return true;
-          } catch (e) {
-            print('❌ Error parsing registered user: $e');
-            print('📦 Raw user data: ${userResponse.data}');
-            
-            // Fallback with provided data
-            final fallbackUser = UserModel(
-              id: 0,
-              phone: phone,
-              role: role,
-              email: email,
-              name: name,
-            );
-            
-            await _storage.saveUser({
-              'id': 0,
-              'name': name,
-              'email': email,
-              'phone': phone,
-              'role': role
-            });
-            await _storage.saveUserRole(role);
-            
             state = state.copyWith(
               status: AuthStatus.authenticated,
-              user: fallbackUser,
-              isLoading: false,
+              user: user,
+              isLoading: false
             );
-            print('⚠️ Using fallback user for registration');
             _loadWishlistAfterAuth();
-            return true;
           }
-        } else {
-          // User endpoint failed but registration succeeded
-          print('⚠️ /api/user failed but registration succeeded');
-          
-          final fallbackUser = UserModel(
-            id: 0,
-            phone: phone,
-            role: role,
-            email: email,
-            name: name,
-          );
-          
-          await _storage.saveUser({
-            'id': 0,
-            'name': name,
-            'email': email,
-            'phone': phone,
-            'role': role
-          });
-          await _storage.saveUserRole(role);
-          
-          state = state.copyWith(
-            status: AuthStatus.authenticated,
-            user: fallbackUser,
-            isLoading: false,
-          );
-          print('⚠️ Using fallback user - /api/user endpoint failed');
-          _loadWishlistAfterAuth();
-          return true;
         }
+
+        return {'success': true, 'requires_verification': false};
       }
-      
+
       print('❌ Registration failed - non-200 response');
       state = state.copyWith(isLoading: false, error: 'Registration failed');
-      return false;
-      
+      return {'success': false, 'error': 'Registration failed'};
+
     } on DioException catch (e) {
       print('❌ DioException during registration: ${e.message}');
       print('📦 Response: ${e.response?.data}');
-      
+
       String errorMessage = 'Registration failed';
       if (e.response?.statusCode == 422) {
         final errors = e.response?.data['errors'];
@@ -417,9 +364,188 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
       }
       state = state.copyWith(isLoading: false, error: errorMessage);
-      return false;
+      return {'success': false, 'error': errorMessage};
     } catch (e) {
       print('❌ Unexpected error during registration: $e');
+      state = state.copyWith(isLoading: false, error: 'Unexpected error');
+      return {'success': false, 'error': 'Unexpected error'};
+    }
+  }
+
+  /// Verify OTP code sent to email
+  Future<bool> verifyOtp(String email, String otp) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      print('🔐 Verifying OTP for: $email');
+      final response = await _api.post(ApiEndpoints.verifyOtp, data: {
+        'email': email,
+        'otp': otp,
+      });
+
+      print('📦 OTP verification response: ${response.statusCode}');
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final data = response.data;
+        final token = data['token'];
+
+        if (token != null) {
+          await _storage.saveToken(token);
+
+          final userData = data['user'] as Map<String, dynamic>;
+          final user = UserModel.fromJson(userData);
+
+          await _storage.saveUser(userData);
+          await _storage.saveUserRole(user.role);
+
+          state = state.copyWith(
+            status: AuthStatus.authenticated,
+            user: user,
+            isLoading: false,
+          );
+
+          print('✅ OTP verified, user authenticated');
+          _loadWishlistAfterAuth();
+          return true;
+        }
+      }
+
+      final errorMsg = response.data['message'] ?? 'OTP verification failed';
+      state = state.copyWith(isLoading: false, error: errorMsg);
+      return false;
+
+    } on DioException catch (e) {
+      print('❌ DioException during OTP verification: ${e.message}');
+      String errorMessage = e.response?.data?['message'] ?? 'OTP verification failed';
+      state = state.copyWith(isLoading: false, error: errorMessage);
+      return false;
+    } catch (e) {
+      print('❌ Unexpected error during OTP verification: $e');
+      state = state.copyWith(isLoading: false, error: 'Unexpected error');
+      return false;
+    }
+  }
+
+  /// Upload user avatar/profile picture
+  Future<bool> uploadAvatar(dynamic imageFile) async {
+    if (imageFile == null) return true;
+
+    try {
+      print('📷 Uploading avatar...');
+      final formData = FormData.fromMap({
+        'avatar': await MultipartFile.fromFile(
+          imageFile.path,
+          filename: 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+      });
+
+      final response = await _api.post('/api/user/avatar', data: formData);
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        print('✅ Avatar uploaded successfully');
+        // Update user avatar in state
+        if (state.user != null) {
+          final updatedUser = state.user!.copyWith(
+            avatar: response.data['avatar'],
+          );
+          state = state.copyWith(user: updatedUser);
+        }
+        return true;
+      }
+      print('❌ Avatar upload failed');
+      return false;
+    } catch (e) {
+      print('❌ Error uploading avatar: $e');
+      return false;
+    }
+  }
+
+  /// Resend OTP code
+  Future<bool> resendOtp(String email) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      print('📧 Resending OTP to: $email');
+      final response = await _api.post(ApiEndpoints.resendOtp, data: {
+        'email': email,
+      });
+
+      state = state.copyWith(isLoading: false);
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        print('✅ OTP resent successfully');
+        return true;
+      }
+
+      state = state.copyWith(error: response.data['message'] ?? 'Failed to resend OTP');
+      return false;
+
+    } on DioException catch (e) {
+      print('❌ Error resending OTP: ${e.message}');
+      state = state.copyWith(isLoading: false, error: 'Failed to resend OTP');
+      return false;
+    } catch (e) {
+      print('❌ Unexpected error resending OTP: $e');
+      state = state.copyWith(isLoading: false, error: 'Unexpected error');
+      return false;
+    }
+  }
+
+  /// Google Sign-In
+  Future<bool> signInWithGoogle({
+    required String email,
+    required String name,
+    required String googleId,
+    String? avatar,
+    String? idToken,
+    String? accessToken,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      print('🔵 Google Sign-In for: $email');
+      final response = await _api.post(ApiEndpoints.googleAuth, data: {
+        'email': email,
+        'name': name,
+        'google_id': googleId,
+        'avatar': avatar,
+        'id_token': idToken,
+        'access_token': accessToken,
+      });
+
+      print('📦 Google auth response: ${response.statusCode}');
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final data = response.data;
+        final token = data['token'];
+
+        if (token != null) {
+          await _storage.saveToken(token);
+
+          final userData = data['user'] as Map<String, dynamic>;
+          final user = UserModel.fromJson(userData);
+
+          await _storage.saveUser(userData);
+          await _storage.saveUserRole(user.role);
+
+          state = state.copyWith(
+            status: AuthStatus.authenticated,
+            user: user,
+            isLoading: false,
+          );
+
+          print('✅ Google Sign-In successful');
+          _loadWishlistAfterAuth();
+          return true;
+        }
+      }
+
+      state = state.copyWith(isLoading: false, error: 'Google sign-in failed');
+      return false;
+
+    } on DioException catch (e) {
+      print('❌ DioException during Google sign-in: ${e.message}');
+      state = state.copyWith(isLoading: false, error: 'Google sign-in failed');
+      return false;
+    } catch (e) {
+      print('❌ Unexpected error during Google sign-in: $e');
       state = state.copyWith(isLoading: false, error: 'Unexpected error');
       return false;
     }

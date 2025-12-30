@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../chat/providers/chat_provider.dart';
 
 class VendorShell extends ConsumerWidget {
   final Widget child;
@@ -18,7 +19,7 @@ class VendorShell extends ConsumerWidget {
   }
 }
 
-class VendorBottomNav extends StatelessWidget {
+class VendorBottomNav extends ConsumerWidget {
   const VendorBottomNav({super.key});
 
   int _calculateSelectedIndex(BuildContext context) {
@@ -26,7 +27,8 @@ class VendorBottomNav extends StatelessWidget {
     if (location == '/vendor' || location == '/vendor/') return 0;
     if (location.startsWith('/vendor/products')) return 1;
     if (location.startsWith('/vendor/orders')) return 2;
-    if (location.startsWith('/vendor/profile')) return 3;
+    if (location.startsWith('/vendor/messages')) return 3;
+    if (location.startsWith('/vendor/profile')) return 4;
     return 0;
   }
 
@@ -42,14 +44,18 @@ class VendorBottomNav extends StatelessWidget {
         context.go('/vendor/orders');
         break;
       case 3:
+        context.go('/vendor/messages');
+        break;
+      case 4:
         context.go('/vendor/profile');
         break;
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = _calculateSelectedIndex(context);
+    final unreadCount = ref.watch(unreadCountProvider).valueOrNull ?? 0;
 
     return Container(
       decoration: BoxDecoration(
@@ -90,11 +96,19 @@ class VendorBottomNav extends StatelessWidget {
                 onTap: () => _onItemTapped(context, 2),
               ),
               _NavItem(
+                icon: Icons.chat_bubble_outline,
+                activeIcon: Icons.chat_bubble,
+                label: 'Messages',
+                isSelected: selectedIndex == 3,
+                onTap: () => _onItemTapped(context, 3),
+                badge: unreadCount > 0 ? unreadCount : null,
+              ),
+              _NavItem(
                 icon: Icons.person_outline,
                 activeIcon: Icons.person,
                 label: 'Profile',
-                isSelected: selectedIndex == 3,
-                onTap: () => _onItemTapped(context, 3),
+                isSelected: selectedIndex == 4,
+                onTap: () => _onItemTapped(context, 4),
               ),
             ],
           ),
@@ -110,6 +124,7 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final int? badge;
 
   const _NavItem({
     required this.icon,
@@ -117,6 +132,7 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.onTap,
+    this.badge,
   });
 
   @override
@@ -126,7 +142,7 @@ class _NavItem extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
@@ -134,17 +150,44 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isSelected ? activeIcon : icon,
-              color: isSelected ? AppColors.primary : AppColors.textSecondary,
-              size: 24,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  isSelected ? activeIcon : icon,
+                  color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                  size: 24,
+                ),
+                if (badge != null && badge! > 0)
+                  Positioned(
+                    right: -8,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.error,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text(
+                        badge! > 99 ? '99+' : badge.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
                 color: isSelected ? AppColors.primary : AppColors.textSecondary,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
             ),

@@ -184,28 +184,6 @@ class ProductCard extends StatelessWidget {
                   ),
                 ],
               ),
-              
-              const Spacer(),
-              
-              // Add to Cart button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: listing.isInStock ? onCartTap : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'Add to Cart',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
             ],
           ),
         ),

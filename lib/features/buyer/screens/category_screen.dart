@@ -175,19 +175,22 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
               );
             }
             
-            return SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-                childAspectRatio: 0.7,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final listing = listings[index];
-                  return ProductCard(listing: listing);
-                },
-                childCount: listings.length,
+            return SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 0.65,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final listing = listings[index];
+                    return ProductCard(listing: listing);
+                  },
+                  childCount: listings.length,
+                ),
               ),
             );
           },

@@ -197,6 +197,65 @@ class OrderModel {
       default: return status.toUpperCase();
     }
   }
+
+  // Copy with method for immutable updates
+  OrderModel copyWith({
+    int? id,
+    String? orderNumber,
+    int? buyerId,
+    int? vendorProfileId,
+    String? status,
+    DateTime? confirmedAt,
+    DateTime? processingAt,
+    DateTime? shippedAt,
+    DateTime? deliveredAt,
+    DateTime? cancelledAt,
+    double? subtotal,
+    double? shipping,
+    double? taxes,
+    double? platformCommission,
+    double? total,
+    int? deliveryTimeDays,
+    int? processingTimeHours,
+    double? deliveryScore,
+    Map<String, dynamic>? meta,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    UserModel? buyer,
+    VendorProfileModel? vendorProfile,
+    List<OrderItemModel>? items,
+    List<PaymentModel>? payments,
+    EscrowModel? escrow,
+  }) {
+    return OrderModel(
+      id: id ?? this.id,
+      orderNumber: orderNumber ?? this.orderNumber,
+      buyerId: buyerId ?? this.buyerId,
+      vendorProfileId: vendorProfileId ?? this.vendorProfileId,
+      status: status ?? this.status,
+      confirmedAt: confirmedAt ?? this.confirmedAt,
+      processingAt: processingAt ?? this.processingAt,
+      shippedAt: shippedAt ?? this.shippedAt,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      subtotal: subtotal ?? this.subtotal,
+      shipping: shipping ?? this.shipping,
+      taxes: taxes ?? this.taxes,
+      platformCommission: platformCommission ?? this.platformCommission,
+      total: total ?? this.total,
+      deliveryTimeDays: deliveryTimeDays ?? this.deliveryTimeDays,
+      processingTimeHours: processingTimeHours ?? this.processingTimeHours,
+      deliveryScore: deliveryScore ?? this.deliveryScore,
+      meta: meta ?? this.meta,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      buyer: buyer ?? this.buyer,
+      vendorProfile: vendorProfile ?? this.vendorProfile,
+      items: items ?? this.items,
+      payments: payments ?? this.payments,
+      escrow: escrow ?? this.escrow,
+    );
+  }
 }
 
 // Order Item model
@@ -212,7 +271,8 @@ class OrderItemModel {
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final ListingModel? listing;
-  
+  final String? _directTitle; // Title stored directly in order_items table
+
   OrderItemModel({
     required this.id,
     required this.orderId,
@@ -225,8 +285,9 @@ class OrderItemModel {
     this.createdAt,
     this.updatedAt,
     this.listing,
-  });
-  
+    String? directTitle,
+  }) : _directTitle = directTitle;
+
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
     return OrderItemModel(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
@@ -236,18 +297,19 @@ class OrderItemModel {
       quantity: json['quantity'] is int ? json['quantity'] : int.tryParse(json['quantity'].toString()) ?? 0,
       unitPrice: json['unit_price'] is num ? json['unit_price'].toDouble() : double.tryParse(json['unit_price'].toString()) ?? 0.0,
       total: json['total'] is num ? json['total'].toDouble() : (json['line_total'] is num ? json['line_total'].toDouble() : double.tryParse(json['total']?.toString() ?? '') ?? 0.0),
-      meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
+      meta: json['meta'] is Map<String, dynamic> ? json['meta'] : (json['attributes'] is Map<String, dynamic> ? json['attributes'] : null),
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
       updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null,
       listing: json['listing'] != null && json['listing'] is Map<String, dynamic> ? ListingModel.fromJson(json['listing']) : null,
+      directTitle: json['title']?.toString(),
     );
   }
-  
+
   String? get color => meta?['color'] as String?;
   String? get size => meta?['size'] as String?;
   String get formattedUnitPrice => 'UGX ${unitPrice.toStringAsFixed(0)}';
   String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
-  
+
   // Image URL from listing
   String? get imageUrl {
     // Prefer explicit image/thumbnail in meta if provided by API
@@ -265,9 +327,9 @@ class OrderItemModel {
     // No image available
     return null;
   }
-  
-  // Title from listing
-  String get title => listing?.title ?? 'Product';
+
+  // Title from direct field or listing
+  String get title => _directTitle ?? listing?.title ?? 'Product';
 
   // Compatibility helpers expected by UI
   dynamic get variant => meta?['variant'];
