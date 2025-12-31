@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../auth/providers/auth_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -49,14 +51,7 @@ class ProfileScreen extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: AppColors.primary,
-                    child: Text(
-                      user.initials,
-                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                  ),
+                  _buildUserAvatar(user),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -105,6 +100,57 @@ class ProfileScreen extends ConsumerWidget {
         title: Text(title),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildUserAvatar(dynamic user) {
+    final avatarUrl = user?.avatar;
+
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      // Handle relative and absolute URLs
+      String fullUrl = avatarUrl;
+      if (!avatarUrl.startsWith('http')) {
+        fullUrl = '${AppConstants.baseUrl}/storage/$avatarUrl';
+      }
+
+      return CircleAvatar(
+        radius: 32,
+        backgroundColor: AppColors.primary.withOpacity(0.1),
+        child: ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: fullUrl,
+            width: 64,
+            height: 64,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.primary,
+            ),
+            errorWidget: (context, url, error) => Text(
+              user?.initials ?? 'U',
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Fallback to initials
+    return CircleAvatar(
+      radius: 32,
+      backgroundColor: AppColors.primary,
+      child: Text(
+        user?.initials ?? 'U',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

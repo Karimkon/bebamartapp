@@ -155,10 +155,79 @@ final vendorRecentOrdersProvider = FutureProvider<List<VendorOrderModel>>((ref) 
 });
 
 // ==================== VENDOR PROFILE PROVIDER ====================
+// Now fetches full profile with stats from API
 final vendorProfileProvider = FutureProvider<VendorProfileModel?>((ref) async {
+  print('🔄 vendorProfileProvider: Fetching vendor profile with stats...');
+  final api = ref.watch(apiClientProvider);
   final user = ref.watch(currentUserProvider);
-  return user?.vendorProfile;
+
+  if (user == null || !user.isVendor) {
+    print('⚠️ User is null or not a vendor');
+    return null;
+  }
+
+  try {
+    // First get the dashboard stats
+    final dashboardResponse = await api.get('/api/vendor/dashboard');
+
+    if (dashboardResponse.statusCode == 200 && dashboardResponse.data is Map) {
+      final data = dashboardResponse.data as Map;
+
+      if (data['success'] == true && data['stats'] != null) {
+        final stats = data['stats'] as Map<String, dynamic>;
+
+        // Build an enhanced profile with stats
+        final baseProfile = user.vendorProfile;
+        if (baseProfile != null) {
+          // Create enhanced profile with stats from dashboard
+          return VendorProfileModel(
+            id: baseProfile.id,
+            userId: baseProfile.userId,
+            businessName: baseProfile.businessName,
+            businessDescription: baseProfile.businessDescription,
+            businessAddress: baseProfile.businessAddress,
+            phone: baseProfile.phone,
+            email: baseProfile.email,
+            logo: baseProfile.logo,
+            banner: baseProfile.banner,
+            vendorType: baseProfile.vendorType,
+            vettingStatus: baseProfile.vettingStatus,
+            country: baseProfile.country,
+            city: baseProfile.city,
+            rating: _parseDouble(stats['average_rating']),
+            totalSales: _parseInt(stats['total_orders']),
+            meta: baseProfile.meta,
+            createdAt: baseProfile.createdAt,
+            updatedAt: baseProfile.updatedAt,
+          );
+        }
+      }
+    }
+
+    // Fallback to cached profile
+    print('⚠️ Using cached vendor profile');
+    return user.vendorProfile;
+  } on DioException catch (e) {
+    print('❌ DioException in vendorProfileProvider: ${e.message}');
+    return user.vendorProfile;
+  } catch (e) {
+    print('❌ Error in vendorProfileProvider: $e');
+    return user.vendorProfile;
+  }
 });
+
+int _parseInt(dynamic value) {
+  if (value == null) return 0;
+  if (value is int) return value;
+  return int.tryParse(value.toString()) ?? 0;
+}
+
+double _parseDouble(dynamic value) {
+  if (value == null) return 0.0;
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  return double.tryParse(value.toString()) ?? 0.0;
+}
 
 // ==================== LISTINGS STATE & NOTIFIER ====================
 class VendorListingsState {

@@ -54,6 +54,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isGoogleLoading = true);
 
     try {
+      // Sign out first to force account picker to show all accounts
+      await _googleSignIn.signOut();
+
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
@@ -369,7 +372,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                       OutlinedButton(
-                        onPressed: () => context.push('/vendor/onboarding'),
+                        onPressed: () => context.push('/register/vendor'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.secondary,
                           side: const BorderSide(color: AppColors.secondary),

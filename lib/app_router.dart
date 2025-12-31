@@ -29,6 +29,7 @@ import 'features/buyer/screens/wallet_screen.dart';
 import 'features/buyer/screens/my_reviews_screen.dart';
 import 'features/buyer/screens/help_support_screen.dart';
 import 'features/buyer/screens/settings_screen.dart';
+import 'features/buyer/screens/payment_webview_screen.dart';
 
 // Vendor
 import 'features/vendor/screens/vendor_shell.dart';
@@ -57,6 +58,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authState.isAuthenticated;
       final isLoading = authState.isLoading;
       final location = state.matchedLocation;
+
+      // NEVER redirect away from OTP verification
+      if (location == '/verify-otp') {
+        return null;
+      }
 
       // Routes that require authentication
       const protectedRoutes = [
@@ -112,8 +118,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Don't redirect while loading for other routes
       if (isLoading) return null;
 
-      // Auth routes
-      final isAuthRoute = location == '/login' || location == '/register';
+      // Auth routes - but NOT verify-otp
+      final isAuthRoute = location == '/login' ||
+                          location == '/register' ||
+                          location == '/register/vendor';
 
       // Check if current route is protected
       final isProtectedRoute = protectedRoutes.any((route) =>
@@ -162,21 +170,32 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           // Support both old format (String) and new format (Map)
           String email = '';
+          String? phone;
           String? profileImagePath;
+          String verificationType = 'sms'; // Default to SMS
 
           if (state.extra is String) {
             email = state.extra as String;
           } else if (state.extra is Map) {
             final data = state.extra as Map;
             email = data['email'] ?? '';
+            phone = data['phone'];
             profileImagePath = data['profileImagePath'];
+            verificationType = data['verificationType'] ?? 'sms';
           }
 
           return OtpVerificationScreen(
             email: email,
+            phone: phone,
             profileImagePath: profileImagePath,
+            verificationType: verificationType,
           );
         },
+      ),
+      // Vendor Registration Route
+      GoRoute(
+        path: '/register/vendor',
+        builder: (context, state) => const RegisterScreen(isVendor: true),
       ),
 
       // ==================== BUYER ROUTES ====================
@@ -246,6 +265,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/checkout',
         builder: (context, state) => const CheckoutScreen(),
+      ),
+      GoRoute(
+        path: '/payment/:orderId',
+        builder: (context, state) {
+          final orderId = int.tryParse(state.pathParameters['orderId'] ?? '') ?? 0;
+          final extra = state.extra as Map<String, dynamic>?;
+          return PaymentWebViewScreen(
+            orderId: orderId,
+            paymentUrl: extra?['paymentUrl'] ?? '',
+            orderNumber: extra?['orderNumber'] ?? '',
+          );
+        },
       ),
       GoRoute(
         path: '/orders/:id',

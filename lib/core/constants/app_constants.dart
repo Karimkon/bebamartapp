@@ -271,6 +271,10 @@ class ApiEndpoints {
   static String paymentMobileMoney(int orderId) => '/api/payment/order/$orderId/mobile-money';
   static String paymentCard(int orderId) => '/api/payment/order/$orderId/card';
   static String paymentStatus(int orderId) => '/api/payment/order/$orderId/status';
+
+  // Pesapal Payment (for Card and Mobile Money)
+  static String pesapalPayment(int orderId) => '/api/orders/$orderId/pay/pesapal';
+  static String orderPaymentStatus(int orderId) => '/api/orders/$orderId/payment-status';
   
   // Health check
   static const String health = '/api/health';

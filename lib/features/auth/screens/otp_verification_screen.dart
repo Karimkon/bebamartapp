@@ -11,12 +11,16 @@ import '../../../shared/widgets/custom_widgets.dart';
 
 class OtpVerificationScreen extends ConsumerStatefulWidget {
   final String email;
+  final String? phone;
   final String? profileImagePath;
+  final String verificationType; // 'sms' or 'email'
 
   const OtpVerificationScreen({
     super.key,
     required this.email,
+    this.phone,
     this.profileImagePath,
+    this.verificationType = 'sms', // Default to SMS
   });
 
   @override
@@ -152,6 +156,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     }
   }
 
+  bool get isSmsVerification => widget.verificationType == 'sms' && widget.phone != null;
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -159,7 +165,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Verify Email'),
+        title: Text(isSmsVerification ? 'Verify Phone' : 'Verify Email'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -180,8 +186,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                   color: AppColors.primaryLight,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.email_outlined,
+                child: Icon(
+                  isSmsVerification ? Icons.sms_outlined : Icons.email_outlined,
                   size: 48,
                   color: AppColors.primary,
                 ),
@@ -189,9 +195,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
               const SizedBox(height: 32),
 
               // Title
-              const Text(
-                'Email Verification',
-                style: TextStyle(
+              Text(
+                isSmsVerification ? 'Phone Verification' : 'Email Verification',
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
@@ -200,16 +206,18 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
               const SizedBox(height: 12),
 
               // Subtitle
-              const Text(
-                'We\'ve sent a 6-digit code to',
-                style: TextStyle(
+              Text(
+                isSmsVerification
+                    ? 'We\'ve sent a 6-digit code via SMS to'
+                    : 'We\'ve sent a 6-digit code to',
+                style: const TextStyle(
                   fontSize: 16,
                   color: AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                widget.email,
+                isSmsVerification ? widget.phone! : widget.email,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -302,7 +310,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
               SizedBox(
                 width: double.infinity,
                 child: CustomButton(
-                  text: 'Verify Email',
+                  text: isSmsVerification ? 'Verify Phone' : 'Verify Email',
                   onPressed: _handleVerify,
                   isLoading: authState.isLoading,
                 ),
@@ -333,9 +341,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
               const Spacer(),
 
               // Help text
-              const Text(
-                'Check your spam folder if you don\'t see the email',
-                style: TextStyle(
+              Text(
+                isSmsVerification
+                    ? 'Make sure your phone can receive SMS messages'
+                    : 'Check your spam folder if you don\'t see the email',
+                style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.textTertiary,
                 ),

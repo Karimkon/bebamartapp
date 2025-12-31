@@ -59,6 +59,9 @@ dependencies:
   url_launcher: ^6.2.3
   share_plus: ^7.2.2
 
+  # WebView for payments
+  webview_flutter: ^4.4.4
+
   # Authentication
   google_sign_in: ^6.2.1
 

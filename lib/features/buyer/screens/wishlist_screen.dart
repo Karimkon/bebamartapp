@@ -7,13 +7,49 @@ import '../../../core/constants/app_constants.dart';
 import '../../../shared/widgets/custom_widgets.dart';
 import '../providers/wishlist_provider.dart';
 import '../providers/cart_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class WishlistScreen extends ConsumerWidget {
   const WishlistScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isAuthenticated = ref.watch(isAuthenticatedProvider);
     final wishlistState = ref.watch(wishlistProvider);
+
+    // Show login prompt if not authenticated
+    if (!isAuthenticated) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('My Wishlist'),
+          centerTitle: true,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.favorite_outline, size: 80, color: AppColors.textTertiary),
+              const SizedBox(height: 16),
+              const Text(
+                'Sign in to view your wishlist',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Save items you love to buy them later',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => context.push('/login'),
+                child: const Text('Sign In'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,

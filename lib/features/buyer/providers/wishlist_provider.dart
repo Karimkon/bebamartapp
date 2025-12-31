@@ -281,11 +281,14 @@ class WishlistNotifier extends StateNotifier<WishlistState> {
 // ==========================================
 final wishlistProvider = StateNotifierProvider<WishlistNotifier, WishlistState>((ref) {
   final api = ref.watch(apiClientProvider);
+  final isAuthenticated = ref.watch(isAuthenticatedProvider);
   final notifier = WishlistNotifier(api);
-  
-  // Auto-load wishlist when provider is created
-  notifier.loadWishlist();
-  
+
+  // Only auto-load wishlist when user is authenticated
+  if (isAuthenticated) {
+    notifier.loadWishlist();
+  }
+
   return notifier;
 });
 

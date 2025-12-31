@@ -141,10 +141,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       print('🚀 Attempting login for: $email');
       final response = await _api.post(ApiEndpoints.login, data: {'email': email, 'password': password});
-      
+
       print('📦 Login response status: ${response.statusCode}');
       print('📦 Login response data: ${response.data}');
-      
+
       if (response.statusCode == 200) {
         // Extract token - check both 'token' and 'access_token'
         final token = response.data is Map 
@@ -174,8 +174,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
             await _storage.saveUserRole(user.role);
             
             state = state.copyWith(
-              status: AuthStatus.authenticated, 
-              user: user, 
+              status: AuthStatus.authenticated,
+              user: user,
               isLoading: false
             );
             print('🎉 Login successful!');
@@ -218,7 +218,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         } else {
           // User endpoint failed, but login was successful
           print('⚠️ /api/user failed but login succeeded');
-          
+
           // Try to get role from login response
           String fallbackRole = 'buyer';
           if (response.data is Map) {
@@ -252,16 +252,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
           return true;
         }
       }
-      
+
       // Login failed
       print('❌ Login failed - non-200 response');
       state = state.copyWith(isLoading: false, error: 'Login failed');
       return false;
-      
+
     } on DioException catch (e) {
       print('❌ DioException during login: ${e.message}');
       print('📦 Response: ${e.response?.data}');
-      
+
       String errorMessage = 'Login failed';
       if (e.response?.statusCode == 422) {
         final errors = e.response?.data['errors'];
@@ -272,7 +272,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       } else if (e.response?.statusCode == 401) {
         errorMessage = 'Invalid email or password';
       }
-      
+
       state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     } catch (e) {
@@ -319,7 +319,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
             'success': true,
             'requires_verification': true,
             'email': data['email'] ?? email,
-            'message': data['message'] ?? 'Please verify your email',
+            'phone': data['phone'] ?? phone,
+            'verification_type': data['verification_type'] ?? 'sms',
+            'message': data['message'] ?? 'Please verify your phone',
           };
         }
 
@@ -356,13 +358,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
       print('📦 Response: ${e.response?.data}');
 
       String errorMessage = 'Registration failed';
-      if (e.response?.statusCode == 422) {
+
+      // First check for direct message field
+      if (e.response?.data != null && e.response?.data['message'] != null) {
+        errorMessage = e.response!.data['message'].toString();
+      }
+      // Then check for validation errors
+      else if (e.response?.statusCode == 422) {
         final errors = e.response?.data['errors'];
         if (errors != null && errors is Map && errors.isNotEmpty) {
           final firstErrors = errors.values.first;
           errorMessage = firstErrors is List ? firstErrors.first.toString() : firstErrors.toString();
         }
       }
+
       state = state.copyWith(isLoading: false, error: errorMessage);
       return {'success': false, 'error': errorMessage};
     } catch (e) {

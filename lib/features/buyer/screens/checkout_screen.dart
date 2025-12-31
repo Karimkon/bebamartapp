@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../shared/models/user_model.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/order_provider.dart';
 
@@ -77,7 +77,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Future<void> _handlePlaceOrder() async {
     final checkoutState = ref.read(checkoutProvider);
-    
+
     if (checkoutState.selectedAddress == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -88,6 +88,285 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
 
+    // For mobile money, show phone number dialog first
+    if (_selectedPaymentMethod == AppConstants.paymentMobileMoney) {
+      final result = await _showMobileMoneyDialog();
+      if (result == null) return; // User cancelled
+      await _placeOrderWithPayment(
+        paymentType: 'mobile_money',
+        phoneNumber: result['phone'],
+        mobileMoneyProvider: result['provider'],
+      );
+      return;
+    }
+
+    // For card payment
+    if (_selectedPaymentMethod == AppConstants.paymentCard) {
+      await _placeOrderWithPayment(paymentType: 'card');
+      return;
+    }
+
+    // For COD, just place the order normally
+    await _placeOrderCOD();
+  }
+
+  Future<Map<String, String>?> _showMobileMoneyDialog() async {
+    String? selectedProvider;
+    final phoneController = TextEditingController();
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Mobile Money Payment'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Select your provider:',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setDialogState(() => selectedProvider = 'mtn'),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: selectedProvider == 'mtn'
+                              ? Colors.yellow.shade100
+                              : AppColors.background,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedProvider == 'mtn'
+                                ? Colors.yellow.shade700
+                                : AppColors.border,
+                            width: selectedProvider == 'mtn' ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.phone_android,
+                              color: Colors.yellow.shade700,
+                              size: 32,
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'MTN MoMo',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setDialogState(() => selectedProvider = 'airtel'),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: selectedProvider == 'airtel'
+                              ? Colors.red.shade50
+                              : AppColors.background,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedProvider == 'airtel'
+                                ? Colors.red
+                                : AppColors.border,
+                            width: selectedProvider == 'airtel' ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.phone_android,
+                              color: Colors.red,
+                              size: 32,
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Airtel Money',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Phone Number',
+                  hintText: '07XX XXX XXX',
+                  prefixIcon: Icon(Icons.phone),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: selectedProvider != null && phoneController.text.isNotEmpty
+                  ? () {
+                      Navigator.pop(context, {
+                        'provider': selectedProvider!,
+                        'phone': phoneController.text.trim(),
+                      });
+                    }
+                  : null,
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _placeOrderWithPayment({
+    required String paymentType,
+    String? phoneNumber,
+    String? mobileMoneyProvider,
+  }) async {
+    setState(() {
+      _isPlacingOrder = true;
+    });
+
+    // Set payment method and notes
+    ref.read(checkoutProvider.notifier).selectPaymentMethod(_selectedPaymentMethod);
+    ref.read(checkoutProvider.notifier).setNotes(_notesController.text.trim());
+
+    // First place the order
+    final order = await ref.read(checkoutProvider.notifier).placeOrder();
+
+    if (order == null) {
+      setState(() {
+        _isPlacingOrder = false;
+      });
+      final error = ref.read(checkoutProvider).error;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error ?? 'Failed to place order'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Now initiate Pesapal payment
+    final api = ref.read(apiClientProvider);
+    final paymentResult = await initiatePesapalPayment(
+      api,
+      order.id,
+      paymentType: paymentType,
+      phoneNumber: phoneNumber,
+      mobileMoneyProvider: mobileMoneyProvider,
+    );
+
+    setState(() {
+      _isPlacingOrder = false;
+    });
+
+    if (!mounted) return;
+
+    if (paymentResult['success'] == true && paymentResult['payment_url'] != null) {
+      // Clear cart
+      await ref.read(cartProvider.notifier).clearCart();
+
+      // Navigate to payment webview
+      context.push(
+        '/payment/${order.id}',
+        extra: {
+          'paymentUrl': paymentResult['payment_url'],
+          'orderNumber': order.orderNumber,
+        },
+      );
+    } else {
+      // Payment initialization failed, but order was placed
+      // Clear cart and show message to retry payment from orders
+      await ref.read(cartProvider.notifier).clearCart();
+
+      _showPaymentPendingDialog(order.orderNumber, paymentResult['message']);
+    }
+  }
+
+  void _showPaymentPendingDialog(String orderNumber, String? errorMessage) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: const BoxDecoration(
+                color: AppColors.warning,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.payment, color: AppColors.white, size: 48),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Order Created',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Order #$orderNumber',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              errorMessage ?? 'Payment could not be initiated. You can complete payment from your orders.',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.go('/orders');
+                },
+                child: const Text('View Orders'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _placeOrderCOD() async {
     setState(() {
       _isPlacingOrder = true;
     });
@@ -105,7 +384,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (order != null && mounted) {
       // Clear cart
       await ref.read(cartProvider.notifier).clearCart();
-      
+
       // Show success dialog
       showDialog(
         context: context,
@@ -594,6 +873,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         'title': 'Mobile Money',
         'subtitle': 'MTN, Airtel Money',
         'icon': Icons.phone_android_outlined,
+      },
+      {
+        'value': AppConstants.paymentCard,
+        'title': 'Card Payment',
+        'subtitle': 'Visa, Mastercard',
+        'icon': Icons.credit_card_outlined,
       },
     ];
 

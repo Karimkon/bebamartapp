@@ -76,24 +76,35 @@ class ApiClient {
           print('   Message: ${error.message}');
           print('   Response: ${error.response?.data}');
         }
-        
-        // Handle 401 Unauthorized - token expired
+
+        // Handle 401 Unauthorized - token expired or invalid
+        // Only clear auth data if we actually had a token that was rejected
         if (error.response?.statusCode == 401) {
-          await _storage.clearAuthData();
-          // Auth state listener will handle navigation to login
+          final hadToken = error.requestOptions.headers['Authorization'] != null;
+          if (hadToken) {
+            if (kDebugMode) {
+              print('🔑 Token rejected - clearing auth data');
+            }
+            await _storage.clearAuthData();
+            // Auth state listener will handle navigation to login
+          } else {
+            if (kDebugMode) {
+              print('⚠️ 401 without token - endpoint requires auth');
+            }
+          }
         }
-        
+
         // Handle 419 - CSRF token mismatch
         if (error.response?.statusCode == 419) {
           // Refresh CSRF token and retry
           await _refreshCsrfToken();
         }
-        
+
         // Handle 422 - Validation errors
         if (error.response?.statusCode == 422) {
           // Keep the response data for form validation display
         }
-        
+
         return handler.next(error);
       },
     ));

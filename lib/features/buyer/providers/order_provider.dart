@@ -405,6 +405,81 @@ final orderDetailProvider = FutureProvider.family<OrderModel?, int>((ref, orderI
   }
 });
 
+// Initiate Pesapal payment (for Card and Mobile Money)
+Future<Map<String, dynamic>> initiatePesapalPayment(
+  ApiClient api,
+  int orderId, {
+  required String paymentType, // 'card' or 'mobile_money'
+  String? phoneNumber,
+  String? mobileMoneyProvider, // 'mtn' or 'airtel'
+}) async {
+  try {
+    final data = <String, dynamic>{
+      'payment_type': paymentType,
+    };
+
+    if (paymentType == 'mobile_money') {
+      data['phone_number'] = phoneNumber;
+      data['mobile_money_provider'] = mobileMoneyProvider;
+    }
+
+    final response = await api.post(
+      ApiEndpoints.pesapalPayment(orderId),
+      data: data,
+    );
+
+    if (response.statusCode == 200 && response.data is Map) {
+      if (response.data['success'] == true) {
+        return {
+          'success': true,
+          'payment_url': response.data['payment_url'],
+          'transaction_reference': response.data['transaction_reference'],
+          'message': response.data['message'],
+        };
+      }
+    }
+    return {
+      'success': false,
+      'message': response.data?['message'] ?? 'Failed to initiate payment',
+    };
+  } on DioException catch (e) {
+    return {
+      'success': false,
+      'message': e.response?.data?['message'] ?? e.message ?? 'Payment initialization failed',
+    };
+  } catch (e) {
+    return {
+      'success': false,
+      'message': e.toString(),
+    };
+  }
+}
+
+// Check payment status
+Future<Map<String, dynamic>> checkPaymentStatus(ApiClient api, int orderId) async {
+  try {
+    final response = await api.get(ApiEndpoints.orderPaymentStatus(orderId));
+
+    if (response.statusCode == 200 && response.data is Map) {
+      return {
+        'success': true,
+        'status': response.data['status'],
+        'order_status': response.data['order_status'],
+        'message': response.data['message'],
+      };
+    }
+    return {
+      'success': false,
+      'message': response.data?['message'] ?? 'Failed to check payment status',
+    };
+  } catch (e) {
+    return {
+      'success': false,
+      'message': e.toString(),
+    };
+  }
+}
+
 // Confirm delivery for COD orders
 Future<Map<String, dynamic>> confirmDelivery(ApiClient api, int orderId) async {
   try {

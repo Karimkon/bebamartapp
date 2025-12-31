@@ -1,7 +1,10 @@
 // lib/features/buyer/screens/edit_profile_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -18,6 +21,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   bool _isLoading = false;
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -36,6 +41,100 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _showImagePickerOptions() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Text(
+              'Change Profile Photo',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.camera_alt, color: AppColors.primary),
+              ),
+              title: const Text('Take Photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.photo_library, color: AppColors.accent),
+              ),
+              title: const Text('Choose from Gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick image: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -43,6 +142,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     try {
       final api = ref.read(apiClientProvider);
+
+      // Upload avatar if selected
+      if (_selectedImage != null) {
+        final avatarUploaded = await ref.read(authProvider.notifier).uploadAvatar(_selectedImage);
+        if (!avatarUploaded && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to upload profile photo, but continuing...'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+      }
+
+      // Update profile info
       final response = await api.put(
         ApiEndpoints.updateProfile,
         data: {
@@ -88,6 +202,64 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
   }
 
+  Widget _buildAvatar(dynamic user) {
+    // Priority: 1. Selected image, 2. User avatar URL, 3. Initials
+    if (_selectedImage != null) {
+      return CircleAvatar(
+        radius: 50,
+        backgroundImage: FileImage(_selectedImage!),
+      );
+    }
+
+    final avatarUrl = user?.avatar;
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      // Handle relative and absolute URLs
+      String fullUrl = avatarUrl;
+      if (!avatarUrl.startsWith('http')) {
+        fullUrl = '${AppConstants.baseUrl}/storage/$avatarUrl';
+      }
+
+      return CircleAvatar(
+        radius: 50,
+        backgroundColor: AppColors.primary.withOpacity(0.1),
+        child: ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: fullUrl,
+            width: 100,
+            height: 100,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.primary,
+            ),
+            errorWidget: (context, url, error) => Text(
+              user?.initials ?? 'U',
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Fallback to initials
+    return CircleAvatar(
+      radius: 50,
+      backgroundColor: AppColors.primary,
+      child: Text(
+        user?.initials ?? 'U',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
@@ -107,40 +279,44 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             children: [
               // Avatar
               Center(
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundColor: AppColors.primary,
-                      child: Text(
-                        user?.initials ?? 'U',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
+                child: GestureDetector(
+                  onTap: _showImagePickerOptions,
+                  child: Stack(
+                    children: [
+                      _buildAvatar(user),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _showImagePickerOptions,
+                child: const Text(
+                  'Change Photo',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
 
               // Name Field
               Container(

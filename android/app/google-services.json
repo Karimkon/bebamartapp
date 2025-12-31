@@ -1,33 +1,49 @@
 {
   "project_info": {
-    "project_number": "11597583106",
-    "project_id": "disco-math-482020-e3",
-    "storage_bucket": "disco-math-482020-e3.appspot.com"
+    "project_number": "1088306257730",
+    "project_id": "bebamart-95b69",
+    "storage_bucket": "bebamart-95b69.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:11597583106:android:placeholder",
+        "mobilesdk_app_id": "1:1088306257730:android:8d8d22c361f6fe7e2932db",
         "android_client_info": {
           "package_name": "com.bebamart.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "11597583106-c72bfr19le2r7ttb0ubjvcka0ulg511c.apps.googleusercontent.com",
+          "client_id": "1088306257730-6c2i3ifoccrl3pld6ialmrqo79vd7s2q.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bebamart.app",
+            "certificate_hash": "340af8651290d4045f7dcb10c370ab13eed2ff0e"
+          }
+        },
+        {
+          "client_id": "1088306257730-cjp7ko4g5hrgf71v63u8jgu5alfmn83t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bebamart.app",
+            "certificate_hash": "18ac9aad7b78db082a87fabdb01ae59122e50f3e"
+          }
+        },
+        {
+          "client_id": "1088306257730-ep8tvckpgjkiaj1nr3nh7tm9u4ao5kt7.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyPlaceholder"
+          "current_key": "AIzaSyBJ5U0lukkZmai4ONzZFiPNcANyX2k9XqU"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "11597583106-c72bfr19le2r7ttb0ubjvcka0ulg511c.apps.googleusercontent.com",
+              "client_id": "1088306257730-ep8tvckpgjkiaj1nr3nh7tm9u4ao5kt7.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

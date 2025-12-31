@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/widgets/custom_widgets.dart';
+import 'otp_verification_screen.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   final bool isVendor;
@@ -93,17 +94,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       // Check if OTP verification is required
       if (result['requires_verification'] == true) {
         final email = result['email'] ?? _emailController.text.trim();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Please verify your email'),
-            backgroundColor: AppColors.success,
+        final phone = result['phone'] ?? _phoneController.text.trim();
+        final verificationType = result['verification_type'] ?? 'sms';
+
+        print('🔐 Navigating to OTP screen after registration...');
+
+        if (!mounted) {
+          print('❌ Widget not mounted, cannot navigate');
+          return;
+        }
+
+        // Navigate directly using Navigator to bypass GoRouter redirects
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => OtpVerificationScreen(
+              email: email,
+              phone: phone,
+              profileImagePath: _profileImage?.path,
+              verificationType: verificationType,
+            ),
           ),
+          (route) => false, // Remove all previous routes
         );
-        // Navigate to OTP verification screen with profile image path
-        context.push('/verify-otp', extra: {
-          'email': email,
-          'profileImagePath': _profileImage?.path,
-        });
+        print('✅ Navigation to OTP initiated');
+        return; // Exit early
       } else {
         // No OTP required - proceed to app
         final authState = ref.read(authProvider);
@@ -122,6 +136,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() => _isGoogleLoading = true);
 
     try {
+      // Sign out first to force account picker to show all accounts
+      await _googleSignIn.signOut();
+
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
