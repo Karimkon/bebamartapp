@@ -219,12 +219,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         Icon(Icons.store_rounded, color: AppColors.secondary),
                         SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            'Register as a vendor to start selling on BebaMart',
-                            style: TextStyle(
-                              color: AppColors.secondary,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Step 1: Account Creation',
+                                style: TextStyle(
+                                  color: AppColors.secondary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                'Business documents and verification will be collected in Step 2.',
+                                style: TextStyle(
+                                  color: AppColors.secondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

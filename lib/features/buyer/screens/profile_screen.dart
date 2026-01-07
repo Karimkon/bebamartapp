@@ -69,6 +69,15 @@ class ProfileScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             
             // Menu Items
+            if (user.isVendor)
+              _buildMenuItem(
+                context,
+                Icons.storefront,
+                'Vendor Dashboard',
+                () => context.go('/vendor/dashboard'),
+                iconColor: AppColors.primary,
+                textColor: AppColors.primary,
+              ),
             _buildMenuItem(context, Icons.person_outline, 'Edit Profile', () => context.push('/profile/edit')),
             _buildMenuItem(context, Icons.location_on_outlined, 'Shipping Addresses', () => context.push('/profile/addresses')),
             _buildMenuItem(context, Icons.account_balance_wallet_outlined, 'Wallet', () => context.push('/profile/wallet')),
@@ -92,12 +101,25 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
   
-  Widget _buildMenuItem(BuildContext context, IconData icon, String title, VoidCallback onTap) {
+  Widget _buildMenuItem(
+    BuildContext context,
+    IconData icon,
+    String title,
+    VoidCallback onTap, {
+    Color? iconColor,
+    Color? textColor,
+  }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        leading: Icon(icon, color: AppColors.primary),
-        title: Text(title),
+        leading: Icon(icon, color: iconColor ?? AppColors.primary),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: textColor ?? AppColors.textPrimary,
+            fontWeight: textColor != null ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       ),

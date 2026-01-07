@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/listing_model.dart';
@@ -103,7 +104,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('UGX ${effectivePrice.toStringAsFixed(0)}',
+                      Text('UGX ${NumberFormat('#,##0', 'en_US').format(effectivePrice)}',
                           style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.primary)),
                       const SizedBox(height: 8),
                       Text(listing.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),

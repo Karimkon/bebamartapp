@@ -48,7 +48,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _performSearch(String query) {
-    if (query.trim().isEmpty) {
+    // If query is empty but we have price filters, still search
+    final hasPriceFilters = ref.read(searchProvider).minPrice != null || 
+                          ref.read(searchProvider).maxPrice != null;
+    
+    if (query.trim().isEmpty && !hasPriceFilters) {
       ref.read(searchProvider.notifier).clear();
     } else {
       ref.read(searchProvider.notifier).search(query.trim());
@@ -94,6 +98,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           onChanged: _onSearchChanged,
           onSubmitted: _performSearch,
         ),
+        actions: [
+          IconButton(
+            icon: Stack(
+              children: [
+                const Icon(Icons.tune_rounded, color: AppColors.primary),
+                if (searchState.minPrice != null || searchState.maxPrice != null)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.error,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 8,
+                        minHeight: 8,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            onPressed: () => _showFilterBottomSheet(),
+          ),
+        ],
       ),
       body: _buildBody(searchState),
     );
@@ -186,6 +216,141 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       },
     );
   }
+
+  void _showFilterBottomSheet() {
+    final searchState = ref.read(searchProvider);
+    final minController = TextEditingController(
+      text: searchState.minPrice?.toStringAsFixed(0) ?? '',
+    );
+    final maxController = TextEditingController(
+      text: searchState.maxPrice?.toStringAsFixed(0) ?? '',
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 20,
+          right: 20,
+          top: 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Filters',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    minController.clear();
+                    maxController.clear();
+                    ref.read(searchProvider.notifier).search(
+                      _searchController.text,
+                      clearFilters: true,
+                    );
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Reset'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Price Range (UGX)',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: minController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'Min',
+                      filled: true,
+                      fillColor: AppColors.background,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Text('—'),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextField(
+                    controller: maxController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'Max',
+                      filled: true,
+                      fillColor: AppColors.background,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () {
+                  final min = double.tryParse(minController.text);
+                  final max = double.tryParse(maxController.text);
+                  ref.read(searchProvider.notifier).search(
+                    _searchController.text,
+                    minPrice: min,
+                    maxPrice: max,
+                  );
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Apply Filters',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ProductCard extends StatelessWidget {
@@ -253,7 +418,7 @@ class _ProductCard extends StatelessWidget {
                     ),
                     const Spacer(),
                     Text(
-                      'UGX ${product.price.toStringAsFixed(0)}',
+                      product.formattedPrice,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,

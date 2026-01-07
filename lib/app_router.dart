@@ -30,6 +30,10 @@ import 'features/buyer/screens/my_reviews_screen.dart';
 import 'features/buyer/screens/help_support_screen.dart';
 import 'features/buyer/screens/settings_screen.dart';
 import 'features/buyer/screens/payment_webview_screen.dart';
+import 'features/buyer/screens/services_screen.dart';
+import 'features/buyer/screens/service_detail_screen.dart';
+import 'features/buyer/screens/jobs_screen.dart';
+import 'features/buyer/screens/job_detail_screen.dart';
 
 // Vendor
 import 'features/vendor/screens/vendor_shell.dart';
@@ -71,6 +75,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         '/buyer/orders',
         '/profile',
         '/vendor',
+        '/vendor/dashboard',
         '/vendor/products',
         '/vendor/orders',
         '/vendor/profile',
@@ -86,6 +91,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         '/cart',
         '/wishlist',
         '/search',
+        '/services',
+        '/jobs',
       ];
 
       // Special handling for splash: once auth check completes, navigate away
@@ -96,7 +103,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         final user = authState.user;
         if (user != null && user.isVendor) {
           return user.vendorProfile?.vettingStatus == 'approved'
-              ? '/vendor'
+              ? '/home'
               : '/vendor/onboarding';
         }
         return '/home';
@@ -109,7 +116,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         final user = authState.user;
         if (user != null && user.isVendor) {
           return user.vendorProfile?.vettingStatus == 'approved'
-              ? '/vendor'
+              ? '/home'
               : '/vendor/onboarding';
         }
         return '/home';
@@ -131,7 +138,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Check if current route allows guests (product detail, category)
       final isGuestAllowed = guestRoutes.contains(location) ||
           location.startsWith('/product/') ||
-          location.startsWith('/category/');
+          location.startsWith('/category/') ||
+          location.startsWith('/service/') ||
+          location.startsWith('/job/');
 
       // If not logged in and trying to access protected route
       if (!isLoggedIn && isProtectedRoute) return '/login';
@@ -141,7 +150,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         final user = authState.user;
         if (user != null && user.isVendor) {
           return user.vendorProfile?.vettingStatus == 'approved'
-              ? '/vendor'
+              ? '/home'
               : '/vendor/onboarding';
         }
         return '/home';
@@ -245,6 +254,18 @@ final routerProvider = Provider<GoRouter>((ref) {
               child: ProfileScreen(),
             ),
           ),
+          GoRoute(
+            path: '/services',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ServicesScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/jobs',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: JobsScreen(),
+            ),
+          ),
         ],
       ),
 
@@ -261,6 +282,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
           return ProductDetailScreen(productId: id);
         },
+      ),
+      GoRoute(
+        path: '/service/:slug',
+        builder: (context, state) => ServiceDetailScreen(
+          slug: state.pathParameters['slug'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/job/:slug',
+        builder: (context, state) => JobDetailScreen(
+          slug: state.pathParameters['slug'] ?? '',
+        ),
       ),
       GoRoute(
         path: '/checkout',
@@ -327,8 +360,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => VendorShell(child: child),
         routes: [
+          // Default route - Redirect to dashboard (Shop tab now goes to /home)
           GoRoute(
             path: '/vendor',
+            redirect: (context, state) => '/vendor/dashboard',
+          ),
+          GoRoute(
+            path: '/vendor/dashboard',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: VendorDashboardScreen(),
             ),

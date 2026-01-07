@@ -2,6 +2,7 @@
 import 'dart:convert';  
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+import 'package:intl/intl.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -155,8 +156,8 @@ class CartItem {
 
   double get total => price * quantity;
 
-  String get formattedPrice => 'UGX ${price.toStringAsFixed(0)}';
-  String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
+  String get formattedPrice => 'UGX ${NumberFormat('#,##0', 'en_US').format(price)}';
+  String get formattedTotal => 'UGX ${NumberFormat('#,##0', 'en_US').format(total)}';
 }
 
 // ==========================================
@@ -185,10 +186,10 @@ class CartState {
   bool get isEmpty => items.isEmpty;
   bool get isNotEmpty => items.isNotEmpty;
 
-  String get formattedSubtotal => 'UGX ${subtotal.toStringAsFixed(0)}';
-  String get formattedShipping => 'UGX ${shipping.toStringAsFixed(0)}';
-  String get formattedTax => 'UGX ${tax.toStringAsFixed(0)}';
-  String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
+  String get formattedSubtotal => 'UGX ${NumberFormat('#,##0', 'en_US').format(subtotal)}';
+  String get formattedShipping => 'UGX ${NumberFormat('#,##0', 'en_US').format(shipping)}';
+  String get formattedTax => 'UGX ${NumberFormat('#,##0', 'en_US').format(tax)}';
+  String get formattedTotal => 'UGX ${NumberFormat('#,##0', 'en_US').format(total)}';
 
   CartState copyWith({
     List<CartItem>? items,

@@ -14,6 +14,9 @@ import '../providers/wishlist_provider.dart';
 import '../providers/variation_provider.dart';
 import '../../../shared/models/variation_modal.dart';
 import '../../chat/providers/chat_provider.dart';
+import '../providers/service_category_provider.dart';
+import '../../../shared/models/service_model.dart';
+import '../../../shared/models/job_model.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +29,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _selectedCategorySlug;
   CategoryModel? _selectedCategory; // Store full category for subcategory access
   final PageController _bannerController = PageController();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _productsKey = GlobalKey();
   int _currentBannerPage = 0;
 
   @override
@@ -331,7 +336,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     _bannerController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToProducts() {
+    // Scroll to products section smoothly
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_productsKey.currentContext != null) {
+        Scrollable.ensureVisible(
+          _productsKey.currentContext!,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   @override
@@ -349,6 +368,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onRefresh: _handleRefresh,
           color: AppColors.primary,
           child: CustomScrollView(
+            controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               // Modern App Bar
@@ -369,6 +389,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // Categories Section
               SliverToBoxAdapter(
                 child: _buildCategoriesSection(categoriesAsync),
+              ),
+
+              // Quick Links (Services & Jobs) side by side
+              SliverToBoxAdapter(
+                child: _buildQuickLinks(),
               ),
 
               // Products Section Header
@@ -550,45 +575,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: GestureDetector(
         onTap: () => context.push('/search'),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: AppColors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
           child: Row(
             children: [
-              Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 22),
-              const SizedBox(width: 12),
+              Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 20),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Search for products, brands...',
                   style: TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 15,
+                    fontSize: 14,
                   ),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.tune_rounded,
                   color: AppColors.primary,
-                  size: 18,
+                  size: 16,
                 ),
               ),
             ],
@@ -605,8 +630,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       {'title': 'Free Delivery', 'subtitle': 'On Orders Above UGX 50K', 'color': const Color(0xFF00B894)},
     ];
 
-    // Responsive banner height - minimum 140, maximum 180
-    final bannerHeight = (size.height * 0.18).clamp(140.0, 180.0);
+    // Increased minimum height to 105 to fix the 2.7px overflow
+    final bannerHeight = (size.height * 0.13).clamp(105.0, 125.0);
 
     return Column(
       children: [
@@ -618,122 +643,121 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             itemCount: banners.length,
             itemBuilder: (context, index) {
               final banner = banners[index];
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      banner['color'] as Color,
-                      (banner['color'] as Color).withOpacity(0.8),
+              return GestureDetector(
+                onTap: _scrollToProducts, // Scroll to products when tapped
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        banner['color'] as Color,
+                        (banner['color'] as Color).withOpacity(0.8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (banner['color'] as Color).withOpacity(0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
                     ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (banner['color'] as Color).withOpacity(0.3),
-                      blurRadius: 15,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    // Decorative circles
-                    Positioned(
-                      right: -30,
-                      top: -30,
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.1),
+                  child: Stack(
+                    children: [
+                      // Decorative circles (smaller)
+                      Positioned(
+                        right: -20,
+                        top: -20,
+                        child: Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.1),
+                          ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      right: 40,
-                      bottom: -40,
-                      child: Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.1),
+                      Positioned(
+                        right: 30,
+                        bottom: -30,
+                        child: Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.1),
+                          ),
                         ),
                       ),
-                    ),
-                    // Content
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
+                      // Content (more compact)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
                               banner['title'] as String,
                               style: const TextStyle(
-                                fontSize: 22,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.white,
+                                height: 1.1,
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Flexible(
-                            child: Text(
+                            const SizedBox(height: 2),
+                            Text(
                               banner['subtitle'] as String,
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 10,
                                 color: Colors.white.withOpacity(0.9),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'Shop Now',
-                              style: TextStyle(
-                                color: banner['color'] as Color,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
+                            const SizedBox(height: 6), // Slightly reduced spacing
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.white,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                'Shop Now',
+                                style: TextStyle(
+                                  color: banner['color'] as Color,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },
           ),
         ),
-        const SizedBox(height: 12),
-        // Page indicators
+        const SizedBox(height: 8),
+        // Page indicators (smaller)
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
             banners.length,
             (index) => AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: _currentBannerPage == index ? 24 : 8,
-              height: 8,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: _currentBannerPage == index ? 18 : 6,
+              height: 6,
               decoration: BoxDecoration(
                 color: _currentBannerPage == index
                     ? AppColors.primary
                     : AppColors.border,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(3),
               ),
             ),
           ),
@@ -747,14 +771,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Categories',
+                'Product Categories',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
                 ),
@@ -768,10 +792,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       style: TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                     ),
                     const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primary),
+                    Icon(Icons.arrow_forward_ios, size: 11, color: AppColors.primary),
                   ],
                 ),
               ),
@@ -779,7 +804,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         SizedBox(
-          height: 125,
+          height: 85,
           child: categoriesAsync.when(
             data: (categories) => ListView.builder(
               scrollDirection: Axis.horizontal,
@@ -804,6 +829,84 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _buildQuickLinks() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        children: [
+          // Professional Services Button
+          Expanded(
+            child: _buildQuickLinkButton(
+              title: 'Professional\nServices',
+              icon: Icons.handyman_rounded,
+              color: const Color(0xFF6C5CE7),
+              onTap: () => context.push('/services'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Jobs & Careers Button
+          Expanded(
+            child: _buildQuickLinkButton(
+              title: 'Jobs &\nCareers',
+              icon: Icons.work_rounded,
+              color: const Color(0xFF00B894),
+              onTap: () => context.push('/jobs'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickLinkButton({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 70,
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: color.withOpacity(0.1), width: 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCategoryItem(CategoryModel category, bool isSelected, int index) {
     final gradients = [
       [const Color(0xFF667EEA), const Color(0xFF764BA2)],
@@ -817,53 +920,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final gradient = gradients[index % gradients.length];
 
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (_selectedCategorySlug == category.slug) {
-            _selectedCategorySlug = null;
-            _selectedCategory = null;
-          } else {
-            _selectedCategorySlug = category.slug;
-            _selectedCategory = category;
-          }
-        });
-      },
+      onTap: () => context.push('/category/${category.slug}'),
       child: Container(
-        width: 85,
-        margin: const EdgeInsets.symmetric(horizontal: 6),
+        width: 72, // Reduced from 85
+        margin: const EdgeInsets.symmetric(horizontal: 4),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              width: 65,
-              height: 65,
+              width: 44, // Reduced from 52
+              height: 44, // Reduced from 52
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: isSelected ? [AppColors.primary, AppColors.primaryDark] : gradient,
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(12), // Slightly more rounded for small size
                 boxShadow: [
                   BoxShadow(
-                    color: (isSelected ? AppColors.primary : gradient[0]).withOpacity(0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
+                    color: (isSelected ? AppColors.primary : gradient[0]).withOpacity(0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
               child: Icon(
                 category.iconData,
                 color: AppColors.white,
-                size: 28,
+                size: 18, // Reduced from 22
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
             Text(
               category.name,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 color: isSelected ? AppColors.primary : AppColors.textPrimary,
               ),
@@ -879,26 +972,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildCategoryShimmer() {
     return Container(
-      width: 85,
-      margin: const EdgeInsets.symmetric(horizontal: 6),
+      width: 72,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 65,
-            height: 65,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               color: AppColors.border,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           Container(
-            width: 60,
-            height: 12,
+            width: 50,
+            height: 10,
             decoration: BoxDecoration(
               color: AppColors.border,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(5),
             ),
           ),
         ],
@@ -908,7 +1001,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildProductsHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+      key: _productsKey, // Key for scroll target
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -919,7 +1013,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Text(
                   _selectedCategory != null ? _selectedCategory!.name : 'Popular Products',
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
@@ -931,7 +1025,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ? 'Products in ${_selectedCategory!.name} & subcategories'
                       : 'Based on your interests',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -945,21 +1039,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _selectedCategory = null;
               }),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppColors.error.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.close, size: 16, color: AppColors.error),
-                    const SizedBox(width: 4),
+                    Icon(Icons.close, size: 14, color: AppColors.error),
+                    const SizedBox(width: 3),
                     Text(
                       'Clear',
                       style: TextStyle(
                         color: AppColors.error,
                         fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -974,6 +1068,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildProductsGrid(AsyncValue<List<ListingModel>> listingsAsync) {
     return listingsAsync.when(
       data: (listings) {
+        // 1. Filter out vendor's own products
+        final currentUser = ref.read(currentUserProvider);
+        final vendorId = currentUser?.vendorProfile?.id;
+        
+        final baseListings = vendorId != null 
+            ? listings.where((l) => l.vendorProfileId != vendorId).toList()
+            : listings;
+
         List<ListingModel> filteredListings;
 
         if (_selectedCategory != null) {
@@ -981,7 +1083,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final childSlugs = _selectedCategory!.children.map((c) => c.slug).toSet();
 
           // Filter products that belong to parent category OR any of its subcategories
-          filteredListings = listings.where((listing) {
+          filteredListings = baseListings.where((listing) {
             final listingCategorySlug = listing.category?.slug;
             final listingCategoryParentId = listing.category?.parentId;
 
@@ -994,7 +1096,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                    listingCategoryParentId == _selectedCategory!.id;
           }).toList();
         } else {
-          filteredListings = listings;
+          filteredListings = baseListings;
         }
 
         if (filteredListings.isEmpty) {

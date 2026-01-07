@@ -190,7 +190,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
             // Listings Count
             const SizedBox(height: 4),
             Text(
-              '${category.listingsCount} products',
+              category.displayListingsCount,
               style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 12,

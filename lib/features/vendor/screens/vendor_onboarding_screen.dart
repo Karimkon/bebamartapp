@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/vendor_provider.dart';
+import 'onboarding_form_screen.dart';
 
 class VendorOnboardingScreen extends ConsumerStatefulWidget {
   const VendorOnboardingScreen({super.key});
@@ -17,41 +18,38 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.invalidate(vendorProfileProvider));
+    Future.microtask(() => ref.read(vendorOnboardingProvider.notifier).checkStatus());
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
-    final profileAsync = ref.watch(vendorProfileProvider);
-    final user = authState.user;
-    final vendorProfile = user?.vendorProfile;
+    final state = ref.watch(vendorOnboardingProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Vendor Status'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              ref.read(authStateProvider.notifier).logout();
-              context.go('/login');
-            },
-          ),
-        ],
-      ),
-      body: profileAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => _buildErrorState(),
-        data: (profile) {
-          final status = profile?.vettingStatus ?? vendorProfile?.vettingStatus ?? 'pending';
-          return _buildStatusContent(status, profile);
-        },
-      ),
-    );
+    return state.isLoading
+        ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+        : (state.success || state.currentProfile != null)
+            ? Scaffold(
+                backgroundColor: AppColors.background,
+                appBar: AppBar(
+                  title: const Text('Application Status'),
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.logout),
+                      onPressed: () {
+                        ref.read(authStateProvider.notifier).logout();
+                        context.go('/login');
+                      },
+                    ),
+                  ],
+                ),
+                body: _buildStatusContent(
+                  state.currentProfile?.vettingStatus ?? 'pending', 
+                  state.currentProfile
+                ),
+              )
+            : const OnboardingFormScreen();
   }
 
   Widget _buildErrorState() {

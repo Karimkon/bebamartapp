@@ -2,6 +2,7 @@
 // Listing model mapped 1:1 with Laravel listings table
 
 import 'dart:core';
+import 'package:intl/intl.dart';
 import 'user_model.dart';
 import 'category_model.dart';
 import 'package:bebamart/core/constants/app_constants.dart';
@@ -241,7 +242,7 @@ class ListingModel {
 
   bool get isInStock => stock > 0 || hasVariations;
   
-  String get formattedPrice => 'UGX ${price.toStringAsFixed(0)}';
+  String get formattedPrice => 'UGX ${NumberFormat('#,##0', 'en_US').format(price)}';
   
   ListingVariantModel? findVariantByAttributes(String? color, String? size) {
     try {
@@ -373,7 +374,7 @@ class ListingVariantModel {
   
   double get effectivePrice => displayPrice ?? price;
   
-  String get formattedPrice => 'UGX ${effectivePrice.toStringAsFixed(0)}';
+  String get formattedPrice => 'UGX ${NumberFormat('#,##0', 'en_US').format(effectivePrice)}';
   
   bool get inStock => stock > 0;
 }

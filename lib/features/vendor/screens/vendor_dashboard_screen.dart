@@ -267,18 +267,31 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             Expanded(
               child: _ActionButton(
                 icon: Icons.list_alt_outlined,
-                label: 'View Orders',
+                label: 'Store Orders',
                 color: Colors.orange,
                 onTap: () => context.go('/vendor/orders'),
               ),
             ),
-            const SizedBox(width: 12),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
             Expanded(
               child: _ActionButton(
                 icon: Icons.analytics_outlined,
                 label: 'Analytics',
                 color: Colors.purple,
                 onTap: () => context.push('/vendor/analytics'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ActionButton(
+                icon: Icons.shopping_bag_outlined,
+                label: 'My Purchases',
+                color: Colors.teal,
+                onTap: () => context.push('/buyer/orders'),
               ),
             ),
           ],

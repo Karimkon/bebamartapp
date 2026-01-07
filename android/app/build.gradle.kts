@@ -51,9 +51,14 @@ android {
         release {
             // 3. Update this line to use the "release" config we just created
             signingConfig = signingConfigs.getByName("release")
-            
+
             isMinifyEnabled = false
             isShrinkResources = false
+
+            // Fix: Disable native debug symbols to avoid strip warning
+            ndk {
+                debugSymbolLevel = "NONE"
+            }
         }
     }
 }

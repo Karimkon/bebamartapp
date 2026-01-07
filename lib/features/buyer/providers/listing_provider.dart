@@ -290,12 +290,16 @@ class SearchState {
   final bool isLoading;
   final String? error;
   final String query;
+  final double? minPrice;
+  final double? maxPrice;
 
   const SearchState({
     this.results = const [],
     this.isLoading = false,
     this.error,
     this.query = '',
+    this.minPrice,
+    this.maxPrice,
   });
 
   SearchState copyWith({
@@ -303,12 +307,19 @@ class SearchState {
     bool? isLoading,
     String? error,
     String? query,
+    double? minPrice,
+    double? maxPrice,
+    bool clearMinPrice = false,
+    bool clearMaxPrice = false,
+    bool clearFilters = false,
   }) {
     return SearchState(
       results: results ?? this.results,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       query: query ?? this.query,
+      minPrice: (clearFilters || clearMinPrice) ? null : (minPrice ?? this.minPrice),
+      maxPrice: (clearFilters || clearMaxPrice) ? null : (maxPrice ?? this.maxPrice),
     );
   }
 }
@@ -318,18 +329,32 @@ class SearchNotifier extends StateNotifier<SearchState> {
 
   SearchNotifier(this._api) : super(const SearchState());
 
-  Future<void> search(String query) async {
-    if (query.isEmpty) {
+  Future<void> search(String query, {double? minPrice, double? maxPrice, bool clearFilters = false}) async {
+    // Allow empty query if price filters are applied or reset
+    if (query.isEmpty && minPrice == null && maxPrice == null && !clearFilters && state.minPrice == null && state.maxPrice == null) {
       state = const SearchState();
       return;
     }
 
-    state = state.copyWith(isLoading: true, query: query, error: null);
+    state = state.copyWith(
+      isLoading: true, 
+      query: query, 
+      error: null,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+      clearFilters: clearFilters,
+    );
 
     try {
+      final queryParams = {
+        'search': query,
+        if (state.minPrice != null) 'min_price': state.minPrice,
+        if (state.maxPrice != null) 'max_price': state.maxPrice,
+      };
+
       final response = await _api.get(
         ApiEndpoints.marketplace,
-        queryParameters: {'search': query},
+        queryParameters: queryParams,
       );
 
       if (response.statusCode == 200 && response.data is Map) {

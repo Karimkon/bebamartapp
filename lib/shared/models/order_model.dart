@@ -1,6 +1,7 @@
 // lib/shared/models/order_model.dart
 // Order model mapped 1:1 with Laravel orders table
 
+import 'package:intl/intl.dart';
 import 'user_model.dart';
 import 'listing_model.dart';
 
@@ -156,10 +157,10 @@ class OrderModel {
   bool get canBuyerConfirmDelivery => isCashOnDelivery && status == 'shipped' && deliveredAt == null;
   
   // Formatted prices (without currency prefix for flexible use)
-  String get subtotalFormatted => _formatNumber(subtotal);
-  String get shippingFormatted => _formatNumber(shipping);
-  String get taxesFormatted => _formatNumber(taxes);
-  String get totalFormatted => _formatNumber(total);
+  String get subtotalFormatted => NumberFormat('#,##0', 'en_US').format(subtotal);
+  String get shippingFormatted => NumberFormat('#,##0', 'en_US').format(shipping);
+  String get taxesFormatted => NumberFormat('#,##0', 'en_US').format(taxes);
+  String get totalFormatted => NumberFormat('#,##0', 'en_US').format(total);
 
   // Helper to format numbers with thousand separators
   String _formatNumber(double value) {
@@ -307,8 +308,8 @@ class OrderItemModel {
 
   String? get color => meta?['color'] as String?;
   String? get size => meta?['size'] as String?;
-  String get formattedUnitPrice => 'UGX ${unitPrice.toStringAsFixed(0)}';
-  String get formattedTotal => 'UGX ${total.toStringAsFixed(0)}';
+  String get formattedUnitPrice => 'UGX ${NumberFormat('#,##0', 'en_US').format(unitPrice)}';
+  String get formattedTotal => 'UGX ${NumberFormat('#,##0', 'en_US').format(total)}';
 
   // Image URL from listing
   String? get imageUrl {

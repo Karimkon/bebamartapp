@@ -137,6 +137,11 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     CategoryModel category,
     AsyncValue<List<ListingModel>> listingsAsync,
   ) {
+    // Branching logic: If category has children, show subcategory grid first
+    if (category.children.isNotEmpty) {
+      return _buildSubcategoryGrid(category);
+    }
+
     return CustomScrollView(
       controller: _scrollController,
       slivers: [
@@ -258,7 +263,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    _getIconData(category.icon!),
+                    category.iconData,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
@@ -302,7 +307,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
-                  height: 80,
+                  height: 100,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     itemCount: category.children.length,
@@ -328,7 +333,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                                 if (subcategory.icon != null && 
                                     subcategory.icon!.isNotEmpty)
                                   Icon(
-                                    _getIconData(subcategory.icon!),
+                                    subcategory.iconData,
                                     size: 20,
                                     color: Theme.of(context).colorScheme.primary,
                                   ),
@@ -361,44 +366,83 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     );
   }
   
-  IconData _getIconData(String iconName) {
-    // Map Laravel FontAwesome icon names to Flutter Icons
-    final iconMap = {
-      'car': Icons.directions_car,
-      'laptop': Icons.laptop,
-      'mobile-alt': Icons.phone_android,
-      'couch': Icons.chair,
-      'tshirt': Icons.checkroom,
-      'blender': Icons.kitchen,
-      'futbol': Icons.sports_soccer,
-      'baby-carriage': Icons.child_friendly,
-      'gem': Icons.diamond,
-      'book': Icons.menu_book,
-      'pills': Icons.medical_services,
-      'gamepad': Icons.videogame_asset,
-      'home': Icons.home,
-      'store': Icons.store,
-      'tag': Icons.local_offer,
-      'shopping-cart': Icons.shopping_cart,
-      'gift': Icons.card_giftcard,
-      'star': Icons.star,
-      'fire': Icons.local_fire_department,
-      'plane': Icons.airplanemode_active,
-      'map-marker-alt': Icons.location_on,
-      'briefcase': Icons.business_center,
-      'tools': Icons.build,
-      'question-circle': Icons.help,
-      'comments': Icons.comment,
-      'info-circle': Icons.info,
-      'envelope': Icons.email,
-      'th-large': Icons.grid_view,
-      'search': Icons.search,
-      'user': Icons.person,
-      'heart': Icons.favorite,
-      'cart': Icons.shopping_cart,
-    };
-    
-    return iconMap[iconName] ?? Icons.category;
+  Widget _buildSubcategoryGrid(CategoryModel category) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCategoryHeader(category),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.1,
+            ),
+            itemCount: category.children.length,
+            itemBuilder: (context, index) {
+              final subcategory = category.children[index];
+              return InkWell(
+                onTap: () {
+                  context.push('/category/${subcategory.slug}');
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          subcategory.iconData,
+                          color: Theme.of(context).primaryColor,
+                          size: 30,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        subcategory.name,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (subcategory.listingsCount != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          subcategory.displayListingsCount,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 }
 

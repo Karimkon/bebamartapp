@@ -1040,3 +1040,159 @@ class VendorAnalyticsNotifier extends StateNotifier<VendorAnalyticsState> {
 final vendorAnalyticsProvider = StateNotifierProvider<VendorAnalyticsNotifier, VendorAnalyticsState>((ref) {
   return VendorAnalyticsNotifier(ref);
 });
+
+// ==================== VENDOR ONBOARDING STATE & NOTIFIER ====================
+class VendorOnboardingState {
+  final bool isLoading;
+  final String? error;
+  final bool success;
+  final VendorProfileModel? currentProfile;
+
+  VendorOnboardingState({
+    this.isLoading = false,
+    this.error,
+    this.success = false,
+    this.currentProfile,
+  });
+
+  VendorOnboardingState copyWith({
+    bool? isLoading,
+    String? error,
+    bool? success,
+    VendorProfileModel? currentProfile,
+  }) {
+    return VendorOnboardingState(
+      isLoading: isLoading ?? this.isLoading,
+      error: error,
+      success: success ?? this.success,
+      currentProfile: currentProfile ?? this.currentProfile,
+    );
+  }
+}
+
+class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
+  final Ref ref;
+
+  VendorOnboardingNotifier(this.ref) : super(VendorOnboardingState());
+
+  Future<void> checkStatus() async {
+    // If we already have a successful submission in this session, don't re-show loading
+    if (state.currentProfile != null && state.success) {
+      print('⏭️ VendorOnboardingNotifier: Status already known, skipping re-check');
+      return;
+    }
+
+    print('🔄 VendorOnboardingNotifier: Checking status...');
+    state = state.copyWith(isLoading: state.currentProfile == null, error: null);
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.get('/api/vendor/onboard/status');
+      
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final profile = VendorProfileModel.fromJson(response.data['vendor_profile']);
+        state = state.copyWith(isLoading: false, currentProfile: profile);
+        print('✅ Vendor application found: ${profile.vettingStatus}');
+      } else {
+        state = state.copyWith(isLoading: false, currentProfile: null);
+      }
+    } on DioException catch (e) {
+      print('❌ DioException checking status: ${e.message}');
+      state = state.copyWith(
+        isLoading: false, 
+        currentProfile: null,
+        error: e.response?.statusCode == 404 ? null : (e.response?.data?['message'] ?? e.message),
+      );
+    } catch (e) {
+      print('❌ Error checking status: $e');
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<bool> submitOnboarding({
+    required String vendorType,
+    required String businessName,
+    required String country,
+    required String city,
+    required String address,
+    required String preferredCurrency,
+    double? annualTurnover,
+    required File nationalIdFront,
+    required File nationalIdBack,
+    required File bankStatement,
+    required File proofOfAddress,
+    required String guarantorName,
+    required String guarantorPhone,
+    required File guarantorId,
+    File? companyRegistration,
+    File? taxCertificate,
+  }) async {
+    print('🔄 VendorOnboardingNotifier: Submitting onboarding application...');
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final api = ref.read(apiClientProvider);
+      
+      final formData = FormData.fromMap({
+        'vendor_type': vendorType,
+        'business_name': businessName,
+        'country': country,
+        'city': city,
+        'address': address,
+        'preferred_currency': preferredCurrency,
+        if (annualTurnover != null) 'annual_turnover': annualTurnover.toString(),
+        'guarantor_name': guarantorName,
+        'guarantor_phone': guarantorPhone,
+        'terms': '1',
+      });
+
+      formData.files.addAll([
+        MapEntry('national_id_front', await MultipartFile.fromFile(nationalIdFront.path, filename: 'id_front.jpg')),
+        MapEntry('national_id_back', await MultipartFile.fromFile(nationalIdBack.path, filename: 'id_back.jpg')),
+        MapEntry('bank_statement', await MultipartFile.fromFile(bankStatement.path, filename: 'bank_statement.pdf')), // Assuming PDF/Image
+        MapEntry('proof_of_address', await MultipartFile.fromFile(proofOfAddress.path, filename: 'proof_address.jpg')),
+        MapEntry('guarantor_id', await MultipartFile.fromFile(guarantorId.path, filename: 'guarantor_id.jpg')),
+      ]);
+
+      if (companyRegistration != null) {
+        formData.files.add(MapEntry('company_registration', await MultipartFile.fromFile(companyRegistration.path, filename: 'comp_reg.pdf')));
+      }
+      if (taxCertificate != null) {
+        formData.files.add(MapEntry('tax_certificate', await MultipartFile.fromFile(taxCertificate.path, filename: 'tax_cert.pdf')));
+      }
+
+      final response = await api.post(
+        '/api/vendor/onboard', 
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+      
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final profile = VendorProfileModel.fromJson(response.data['vendor_profile']);
+        state = state.copyWith(isLoading: false, success: true, currentProfile: profile);
+        print('✅ Vendor onboarding submitted successfully');
+        
+        // Refresh user to sync the new vendor role
+        ref.read(authProvider.notifier).refreshUser();
+        return true;
+      } else {
+        state = state.copyWith(isLoading: false, error: response.data['message'] ?? 'Submission failed');
+        return false;
+      }
+    } on DioException catch (e) {
+      print('❌ DioException submitting onboarding: ${e.message}');
+      print('   Response: ${e.response?.data}');
+      state = state.copyWith(
+        isLoading: false, 
+        error: e.response?.data?['message'] ?? e.message,
+      );
+      return false;
+    } catch (e) {
+      print('❌ Error submitting onboarding: $e');
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return false;
+    }
+  }
+}
+
+final vendorOnboardingProvider = StateNotifierProvider<VendorOnboardingNotifier, VendorOnboardingState>((ref) {
+  return VendorOnboardingNotifier(ref);
+});
