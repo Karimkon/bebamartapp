@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../providers/vendor_provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../chat/providers/chat_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class VendorDashboardScreen extends ConsumerStatefulWidget {
   const VendorDashboardScreen({super.key});
@@ -14,10 +15,14 @@ class VendorDashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<VendorDashboardScreen> createState() => _VendorDashboardScreenState();
 }
 
-class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
+class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
+    with WidgetsBindingObserver {
+  bool _isCheckingStatus = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Load data when screen initializes
     Future.microtask(() {
       ref.invalidate(vendorDashboardProvider);
@@ -25,9 +30,54 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Auto-refresh when app comes back to foreground
+    if (state == AppLifecycleState.resumed) {
+      _refreshDashboard();
+    }
+  }
+
   Future<void> _refreshDashboard() async {
     ref.invalidate(vendorDashboardProvider);
     ref.invalidate(vendorRecentOrdersProvider);
+    // Also refresh user data to get updated vendor profile
+    ref.read(authProvider.notifier).refreshUser();
+  }
+
+  Future<void> _checkStatus() async {
+    setState(() => _isCheckingStatus = true);
+
+    // Refresh everything
+    ref.invalidate(vendorDashboardProvider);
+    ref.invalidate(vendorRecentOrdersProvider);
+    await ref.read(authProvider.notifier).refreshUser();
+
+    // Wait a bit for the provider to reload
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (mounted) {
+      setState(() => _isCheckingStatus = false);
+
+      // Check if approved now
+      final dashboardAsync = ref.read(vendorDashboardProvider);
+      dashboardAsync.whenData((stats) {
+        if (stats.isApproved) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Your account has been approved! Welcome to BebaMart!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -85,49 +135,73 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
         onRefresh: _refreshDashboard,
         child: dashboardAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 64, color: AppColors.error),
-                const SizedBox(height: 16),
-                Text('Failed to load dashboard', style: TextStyle(color: AppColors.textSecondary)),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: _refreshDashboard,
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
-          data: (stats) => SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Welcome Section
-                _buildWelcomeCard(stats),
-                const SizedBox(height: 20),
+          error: (error, stack) {
+            // Check if vendor is deactivated
+            if (error is VendorDeactivatedException) {
+              return _buildDeactivatedScreen(error);
+            }
+            // Check if vendor needs onboarding (no vendor profile yet)
+            if (error is VendorOnboardingRequiredException) {
+              return _buildOnboardingRequiredScreen();
+            }
+            // Check if pending approval
+            if (error is VendorApprovalPendingException) {
+              return _buildPendingApprovalScreen();
+            }
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: AppColors.error),
+                  const SizedBox(height: 16),
+                  Text('Failed to load dashboard', style: TextStyle(color: AppColors.textSecondary)),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _refreshDashboard,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          },
+          data: (stats) {
+            // Check if vendor is pending approval
+            if (stats.isPending) {
+              return _buildPendingApprovalScreen();
+            }
+            // Check if vendor was rejected
+            if (stats.isRejected) {
+              return _buildRejectedScreen(stats.vettingNotes);
+            }
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Welcome Section
+                  _buildWelcomeCard(stats),
+                  const SizedBox(height: 20),
 
-                // Stats Grid
-                _buildStatsGrid(stats),
-                const SizedBox(height: 20),
+                  // Stats Grid
+                  _buildStatsGrid(stats),
+                  const SizedBox(height: 20),
 
-                // Quick Actions
-                _buildQuickActions(),
-                const SizedBox(height: 20),
+                  // Quick Actions
+                  _buildQuickActions(),
+                  const SizedBox(height: 20),
 
-                // Revenue Card
-                _buildRevenueCard(stats),
-                const SizedBox(height: 20),
+                  // Revenue Card
+                  _buildRevenueCard(stats),
+                  const SizedBox(height: 20),
 
-                // Recent Orders Section
-                _buildRecentOrdersSection(recentOrdersAsync),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
+                  // Recent Orders Section
+                  _buildRecentOrdersSection(recentOrdersAsync),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -478,6 +552,439 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
       return '${(amount / 1000).toStringAsFixed(1)}K';
     }
     return amount.toStringAsFixed(0);
+  }
+
+  Widget _buildDeactivatedScreen(VendorDeactivatedException error) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 60),
+            // Warning Icon
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.block,
+                size: 50,
+                color: AppColors.error,
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // Title
+            const Text(
+              'Account Deactivated',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+
+            // Message
+            Text(
+              error.message,
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+
+            // Contact Support Card
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Contact Support',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (error.supportEmail != null) ...[
+                    _ContactRow(
+                      icon: Icons.email_outlined,
+                      label: error.supportEmail!,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  if (error.supportPhone != null)
+                    _ContactRow(
+                      icon: Icons.phone_outlined,
+                      label: error.supportPhone!,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Appeal Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // TODO: Open email or support page
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please contact support to submit an appeal'),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.send_outlined),
+                label: const Text('Submit an Appeal'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Sign Out Button
+            TextButton.icon(
+              onPressed: () {
+                ref.read(authProvider.notifier).logout();
+                context.go('/');
+              },
+              icon: const Icon(Icons.logout),
+              label: const Text('Sign Out'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOnboardingRequiredScreen() {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 60),
+            // Icon
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.store_mall_directory_outlined,
+                size: 50,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            const Text(
+              'Complete Your Vendor Profile',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+
+            Text(
+              'Before you can start selling, you need to complete your vendor registration by providing your business details and documents.',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.push('/vendor/onboarding'),
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text('Complete Registration'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPendingApprovalScreen() {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 60),
+            // Icon
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.hourglass_top_outlined,
+                size: 50,
+                color: Colors.orange,
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            const Text(
+              'Application Under Review',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+
+            Text(
+              'Your vendor application is being reviewed by our team. This usually takes 24-48 hours. You will receive an email notification once approved.',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'You cannot list products until your application is approved.',
+                      style: TextStyle(
+                        color: Colors.orange.shade800,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isCheckingStatus ? null : _checkStatus,
+                icon: _isCheckingStatus
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh),
+                label: Text(_isCheckingStatus ? 'Checking...' : 'Check Status'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Sign out option
+            TextButton.icon(
+              onPressed: () {
+                ref.read(authProvider.notifier).logout();
+                context.go('/');
+              },
+              icon: const Icon(Icons.logout, size: 18),
+              label: const Text('Sign Out'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRejectedScreen(String? rejectionNotes) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 60),
+            // Icon
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.cancel_outlined,
+                size: 50,
+                color: AppColors.error,
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            const Text(
+              'Application Rejected',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+
+            Text(
+              'Unfortunately, your vendor application was not approved. Please review the feedback below and resubmit your application.',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+
+            if (rejectionNotes != null && rejectionNotes.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.feedback_outlined, color: AppColors.error, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Reason for Rejection:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      rejectionNotes,
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 32),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.push('/vendor/onboarding'),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Resubmit Application'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ContactRow({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: AppColors.primary, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            color: AppColors.primary,
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
   }
 }
 

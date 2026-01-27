@@ -79,12 +79,13 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
 
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (_idFront == null || _idBack == null || _bankStatement == null || _proofOfAddress == null || _guarantorId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please upload all required verification documents'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
         ),
       );
       return;
@@ -95,10 +96,32 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
         const SnackBar(
           content: Text('Please agree to the Terms and Conditions'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
         ),
       );
       return;
     }
+
+    // Show uploading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            const Text('Uploading documents...'),
+            const SizedBox(height: 8),
+            Text(
+              'This may take a few moments',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
 
     final success = await ref.read(vendorOnboardingProvider.notifier).submitOnboarding(
       vendorType: _vendorType,
@@ -119,8 +142,19 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
       taxCertificate: _taxCert,
     );
 
+    // Close the loading dialog
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
     if (success && mounted) {
-      // No need to navigate, the parent VendorOnboardingScreen 
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Application submitted successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      // No need to navigate, the parent VendorOnboardingScreen
       // watches the state and will switch to the status view automatically.
     } else if (mounted) {
       final error = ref.read(vendorOnboardingProvider).error;
@@ -128,6 +162,7 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
         SnackBar(
           content: Text(error ?? 'Failed to submit application'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
         ),
       );
     }

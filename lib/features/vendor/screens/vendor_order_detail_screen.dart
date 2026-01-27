@@ -22,7 +22,7 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
   Future<void> _updateStatus(String newStatus) async {
     setState(() => _isUpdating = true);
 
-    final success = await ref.read(vendorOrdersProvider.notifier).updateOrderStatus(
+    final result = await ref.read(vendorOrdersProvider.notifier).updateOrderStatus(
           widget.orderId,
           newStatus,
         );
@@ -30,13 +30,68 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
     setState(() => _isUpdating = false);
 
     if (mounted) {
+      // Check if COD payment confirmation is required
+      if (result['requires_payment_confirmation'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('For COD orders, please use "Confirm Payment Received"'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['success'] ? 'Status updated to $newStatus' : (result['message'] ?? 'Failed to update status')),
+            backgroundColor: result['success'] ? AppColors.success : AppColors.error,
+          ),
+        );
+        if (result['success']) {
+          ref.invalidate(vendorOrderDetailProvider(widget.orderId));
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmCodPayment() async {
+    // Show confirmation dialog first
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Payment Received'),
+        content: const Text(
+          'Please confirm that you have received the cash payment from the customer.\n\n'
+          'This will mark the order as delivered.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Yes, Payment Received'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isUpdating = true);
+
+    final result = await ref.read(vendorOrdersProvider.notifier).confirmCodPayment(widget.orderId);
+
+    setState(() => _isUpdating = false);
+
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? 'Status updated to $newStatus' : 'Failed to update status'),
-          backgroundColor: success ? AppColors.success : AppColors.error,
+          content: Text(result['message'] ?? (result['success'] ? 'Payment confirmed!' : 'Failed to confirm payment')),
+          backgroundColor: result['success'] ? AppColors.success : AppColors.error,
         ),
       );
-      if (success) {
+      if (result['success']) {
         ref.invalidate(vendorOrderDetailProvider(widget.orderId));
       }
     }
@@ -602,6 +657,9 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
 
   Widget _buildActionButtons(VendorOrderModel order) {
     final status = order.status.toLowerCase();
+    final isCOD = order.paymentMethod?.toLowerCase() == 'cash_on_delivery' ||
+                  order.paymentMethod?.toLowerCase() == 'cod' ||
+                  order.paymentMethod?.toLowerCase() == 'cash';
 
     if (status == 'delivered' || status == 'cancelled') {
       return const SizedBox.shrink();
@@ -610,6 +668,7 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
     String buttonText;
     String nextStatus;
     Color buttonColor;
+    bool useCodConfirmation = false;
 
     switch (status) {
       case 'pending':
@@ -623,9 +682,17 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
         buttonColor = Colors.purple;
         break;
       case 'shipped':
-        buttonText = 'Mark as Delivered';
-        nextStatus = 'delivered';
-        buttonColor = Colors.green;
+        // For COD orders, show "Confirm Payment Received" instead
+        if (isCOD) {
+          buttonText = 'Confirm Payment Received';
+          nextStatus = 'delivered';
+          buttonColor = Colors.green;
+          useCodConfirmation = true;
+        } else {
+          buttonText = 'Mark as Delivered';
+          nextStatus = 'delivered';
+          buttonColor = Colors.green;
+        }
         break;
       default:
         return const SizedBox.shrink();
@@ -633,23 +700,66 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
 
     return Column(
       children: [
+        // Show COD indicator for shipped COD orders
+        if (status == 'shipped' && isCOD) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.payments_outlined, color: Colors.orange.shade700),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Cash on Delivery',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                      Text(
+                        'Collect UGX ${order.total.toStringAsFixed(0)} from customer',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
         SizedBox(
           width: double.infinity,
           height: 52,
-          child: ElevatedButton(
-            onPressed: _isUpdating ? null : () => _updateStatus(nextStatus),
+          child: ElevatedButton.icon(
+            onPressed: _isUpdating
+                ? null
+                : (useCodConfirmation ? _confirmCodPayment : () => _updateStatus(nextStatus)),
             style: ElevatedButton.styleFrom(
               backgroundColor: buttonColor,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: _isUpdating
+            icon: _isUpdating
                 ? const SizedBox(
-                    height: 24,
-                    width: 24,
+                    height: 20,
+                    width: 20,
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                   )
-                : Text(buttonText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                : Icon(useCodConfirmation ? Icons.payments : Icons.check_circle_outline),
+            label: Text(buttonText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ),
         if (status == 'pending') ...[

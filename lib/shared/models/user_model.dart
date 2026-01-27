@@ -10,6 +10,7 @@ class UserModel {
   final DateTime? emailVerifiedAt;
   final String role; // buyer, vendor_local, vendor_international, admin, logistics, clearing_agent
   final bool isActive;
+  final bool isAdminVerified; // Blue tick badge - admin verified user
   final Map<String, dynamic>? meta;
   final VendorProfileModel? vendorProfile;
   final DateTime? createdAt;
@@ -24,6 +25,7 @@ class UserModel {
     this.emailVerifiedAt,
     required this.role,
     this.isActive = true,
+    this.isAdminVerified = false,
     this.meta,
     this.vendorProfile,
     this.createdAt,
@@ -45,6 +47,7 @@ class UserModel {
           : null,
       role: (data['role'] as String?) ?? 'buyer',
       isActive: data['is_active'] == true || data['is_active'] == 1,
+      isAdminVerified: data['is_admin_verified'] == true || data['is_admin_verified'] == 1,
       meta: data['meta'] is Map<String, dynamic> ? data['meta'] : null,
       vendorProfile: data['vendor_profile'] != null
           ? VendorProfileModel.fromJson(data['vendor_profile'])
@@ -68,6 +71,7 @@ class UserModel {
       'email_verified_at': emailVerifiedAt?.toIso8601String(),
       'role': role,
       'is_active': isActive,
+      'is_admin_verified': isAdminVerified,
       'meta': meta,
       'vendor_profile': vendorProfile?.toJson(),
       'created_at': createdAt?.toIso8601String(),
@@ -118,6 +122,7 @@ class UserModel {
     DateTime? emailVerifiedAt,
     String? role,
     bool? isActive,
+    bool? isAdminVerified,
     Map<String, dynamic>? meta,
     VendorProfileModel? vendorProfile,
     DateTime? createdAt,
@@ -132,6 +137,7 @@ class UserModel {
       emailVerifiedAt: emailVerifiedAt ?? this.emailVerifiedAt,
       role: role ?? this.role,
       isActive: isActive ?? this.isActive,
+      isAdminVerified: isAdminVerified ?? this.isAdminVerified,
       meta: meta ?? this.meta,
       vendorProfile: vendorProfile ?? this.vendorProfile,
       createdAt: createdAt ?? this.createdAt,
@@ -157,10 +163,11 @@ class VendorProfileModel {
   final String? city;
   final double rating;
   final int? totalSales;
+  final bool isVerified; // Blue tick verified badge
   final Map<String, dynamic>? meta;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  
+
   VendorProfileModel({
     required this.id,
     required this.userId,
@@ -177,6 +184,7 @@ class VendorProfileModel {
     this.city,
     this.rating = 0.0,
     this.totalSales,
+    this.isVerified = false,
     this.meta,
     this.createdAt,
     this.updatedAt,
@@ -199,6 +207,7 @@ class VendorProfileModel {
       city: json['city']?.toString(),
       rating: json['rating'] is num ? json['rating'].toDouble() : (double.tryParse(json['rating']?.toString() ?? '') ?? 0.0),
       totalSales: json['total_sales'] is int ? json['total_sales'] : int.tryParse(json['total_sales']?.toString() ?? '0'),
+      isVerified: json['is_verified'] == true || json['is_verified'] == 1,
       meta: json['meta'] is Map<String, dynamic> ? json['meta'] : null,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString())
@@ -226,21 +235,22 @@ class VendorProfileModel {
       'city': city,
       'rating': rating,
       'total_sales': totalSales,
+      'is_verified': isVerified,
       'meta': meta,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
   }
-  
+
   bool get isApproved => vettingStatus == 'approved';
   bool get isPending => vettingStatus == 'pending';
   bool get isRejected => vettingStatus == 'rejected';
-  
+
   String get displayRating => rating.toStringAsFixed(1);
-  
+
   // Compatibility alias expected by UI
   String? get businessPhone => phone;
-  
+
   String get location {
     final parts = <String>[];
     if (city != null) parts.add(city!);
@@ -250,6 +260,29 @@ class VendorProfileModel {
 
   // Compatibility aliases expected by vendor UI
   String get ratingValue => (rating ?? 0.0).toStringAsFixed(1);
+
+  /// Get vendor duration badge text (e.g., "2+ years on BebaMart")
+  String get durationBadge {
+    if (createdAt == null) return 'New on BebaMart';
+
+    final now = DateTime.now();
+    final totalDays = now.difference(createdAt!).inDays;
+    final years = totalDays ~/ 365;
+    final months = (totalDays % 365) ~/ 30;
+    final days = totalDays % 30;
+
+    if (years == 0) {
+      if (months == 0) {
+        if (totalDays == 0) return 'New on BebaMart';
+        if (totalDays == 1) return '1 day on BebaMart';
+        return '$totalDays days on BebaMart';
+      }
+      if (months == 1) return '1 month on BebaMart';
+      return '$months months on BebaMart';
+    }
+    if (years == 1) return '1 year on BebaMart';
+    return '$years+ years on BebaMart';
+  }
 }
 
 // Shipping Address model mapped to shipping_addresses table

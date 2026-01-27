@@ -14,7 +14,7 @@ import '../../chat/providers/chat_provider.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
   final int productId;
-  
+
   const ProductDetailScreen({super.key, required this.productId});
 
   @override
@@ -32,7 +32,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   Widget build(BuildContext context) {
     final listingAsync = ref.watch(listingDetailProvider(widget.productId));
     final isWishlisted = ref.watch(isInWishlistProvider(widget.productId));
-    
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: listingAsync.when(
@@ -53,93 +53,340 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final effectivePrice = _selectedVariant?.effectivePrice ?? listing.price;
     final effectiveStock = _selectedVariant?.stock ?? listing.stock;
 
+    // Fetch related products using stable key
+    final relatedProductsAsync = ref.watch(relatedProductsProvider(RelatedProductsKey(
+      productId: widget.productId,
+      categoryId: listing.categoryId,
+      vendorId: listing.vendor?.id,
+    )));
+
     return Stack(
       children: [
-        NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              SliverAppBar(
-                pinned: true,
-                backgroundColor: AppColors.white,
-                leading: IconButton(
+        CustomScrollView(
+          slivers: [
+            // App Bar
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: 0,
+              backgroundColor: AppColors.white,
+              leading: IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: AppColors.background, shape: BoxShape.circle),
+                  child: const Icon(Icons.arrow_back, color: AppColors.textPrimary, size: 20),
+                ),
+                onPressed: () => context.pop(),
+              ),
+              actions: [
+                IconButton(
                   icon: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(color: AppColors.background, shape: BoxShape.circle),
-                    child: const Icon(Icons.arrow_back, color: AppColors.textPrimary, size: 20),
-                  ),
-                  onPressed: () => context.pop(),
-                ),
-                actions: [
-                  IconButton(
-                    icon: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppColors.background, shape: BoxShape.circle),
-                      child: Icon(
-                        isWishlisted ? Icons.favorite : Icons.favorite_outline,
-                        color: isWishlisted ? AppColors.error : AppColors.textPrimary,
-                        size: 20,
-                      ),
+                    child: Icon(
+                      isWishlisted ? Icons.favorite : Icons.favorite_outline,
+                      color: isWishlisted ? AppColors.error : AppColors.textPrimary,
+                      size: 20,
                     ),
-                    onPressed: _handleToggleWishlist,
                   ),
-                  IconButton(
-                    icon: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppColors.background, shape: BoxShape.circle),
-                      child: const Icon(Icons.share_outlined, color: AppColors.textPrimary, size: 20),
-                    ),
-                    onPressed: () {},
-                  ),
-                ],
-              ),
-            ];
-          },
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildImageGallery(listing),
-                Container(
-                  color: AppColors.white,
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('UGX ${NumberFormat('#,##0', 'en_US').format(effectivePrice)}',
-                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                      const SizedBox(height: 8),
-                      Text(listing.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 12),
-                      _buildRatingAndStock(listing, effectiveStock),
-                      if (listing.vendor != null) ...[const SizedBox(height: 16), _buildVendorCard(listing)],
-                    ],
-                  ),
+                  onPressed: _handleToggleWishlist,
                 ),
-                const SizedBox(height: 8),
-                if (hasVariants) _buildVariantSection(listing, availableColors, availableSizes),
-                if (hasVariants) const SizedBox(height: 8),
-                _buildDescriptionSection(listing),
-                if (listing.sku != null || listing.origin != null) _buildDetailsSection(listing),
-                const SizedBox(height: 80),
+                IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: AppColors.background, shape: BoxShape.circle),
+                    child: const Icon(Icons.share_outlined, color: AppColors.textPrimary, size: 20),
+                  ),
+                  onPressed: () {},
+                ),
               ],
             ),
-          ),
+
+            // Main Content
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Image Gallery
+                  _buildImageGallery(listing),
+
+                  // Product Info Card
+                  Container(
+                    color: AppColors.white,
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Price
+                        Text(
+                          'UGX ${NumberFormat('#,##0', 'en_US').format(effectivePrice)}',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Title
+                        Text(
+                          listing.title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Rating and Stock
+                        _buildRatingAndStock(listing, effectiveStock),
+
+                        // Vendor Card
+                        if (listing.vendor != null) ...[
+                          const SizedBox(height: 16),
+                          _buildVendorCard(listing),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Variants Section
+                  if (hasVariants) ...[
+                    _buildVariantSection(listing, availableColors, availableSizes),
+                    const SizedBox(height: 8),
+                  ],
+
+                  // Description Section
+                  _buildDescriptionSection(listing),
+
+                  // Details Section
+                  if (listing.sku != null || listing.origin != null) ...[
+                    const SizedBox(height: 8),
+                    _buildDetailsSection(listing),
+                  ],
+
+                  const SizedBox(height: 16),
+
+                  // Related Products Section
+                  relatedProductsAsync.when(
+                    data: (relatedProducts) {
+                      if (relatedProducts.isEmpty) return const SizedBox.shrink();
+                      return _buildRelatedProductsSection(relatedProducts);
+                    },
+                    loading: () => _buildRelatedProductsLoading(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  ),
+
+                  // Bottom padding for the fixed bottom bar
+                  const SizedBox(height: 100),
+                ],
+              ),
+            ),
+          ],
         ),
+
+        // Fixed Bottom Bar
         Positioned(
           bottom: 0,
           left: 0,
           right: 0,
-          child: _buildBottomBar(listing),
+          child: _buildBottomBar(listing, hasVariants, effectiveStock),
         ),
       ],
     );
   }
 
-  Widget _buildBottomBar(ListingModel listing) {
-    final hasVariants = listing.variants.isNotEmpty && 
-        (_getAvailableColors(listing).isNotEmpty || _getAvailableSizes(listing).isNotEmpty);
-    final effectiveStock = _selectedVariant?.stock ?? listing.stock;
+  Widget _buildRelatedProductsSection(List<ListingModel> products) {
+    return Container(
+      color: AppColors.white,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Related Products',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 220,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                return _buildRelatedProductCard(product);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRelatedProductCard(ListingModel product) {
+    // Get image URL - primaryImage already returns full path
+    final imageUrl = product.primaryImage;
+
+    return GestureDetector(
+      onTap: () => context.push('/product/${product.id}'),
+      child: Container(
+        width: 150,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Product Image
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: AppColors.background,
+                            child: const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          );
+                        },
+                        errorBuilder: (_, __, ___) => _buildImagePlaceholder(),
+                      )
+                    : _buildImagePlaceholder(),
+              ),
+            ),
+
+            // Product Info
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      product.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      'UGX ${NumberFormat('#,##0', 'en_US').format(product.price)}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRelatedProductsLoading() {
+    return Container(
+      color: AppColors.white,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Related Products',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 220,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: 4,
+              itemBuilder: (context, index) {
+                return Container(
+                  width: 150,
+                  margin: const EdgeInsets.only(right: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      // Placeholder image
+                      Container(
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                        ),
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      // Placeholder text
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(height: 12, color: Colors.grey.shade200),
+                              const SizedBox(height: 4),
+                              Container(height: 12, width: 80, color: Colors.grey.shade200),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Container(
+      color: AppColors.background,
+      child: const Center(
+        child: Icon(Icons.image, size: 40, color: AppColors.textTertiary),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar(ListingModel listing, bool hasVariants, int effectiveStock) {
     final isInStock = effectiveStock > 0;
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -151,6 +398,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       child: SafeArea(
         child: Row(
           children: [
+            // Quantity Selector
             Container(
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.border),
@@ -177,6 +425,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               ),
             ),
             const SizedBox(width: 12),
+
+            // Add to Cart Button
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: isInStock ? () => _handleAddToCart(listing, hasVariants) : null,
@@ -234,18 +484,19 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final images = listing.images;
     if (images.isEmpty) {
       return Container(
-        height: 300,
+        height: 280,
         color: AppColors.background,
         child: const Center(child: Icon(Icons.image, size: 64, color: AppColors.textTertiary)),
       );
     }
-    
+
     return Column(
       children: [
+        // Main Image
         GestureDetector(
           onTap: () => _showFullScreenImage(images[_selectedImageIndex].fullPath),
           child: Container(
-            height: 300,
+            height: 280,
             width: double.infinity,
             color: AppColors.white,
             child: Image.network(
@@ -267,9 +518,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             ),
           ),
         ),
+
+        // Thumbnail Strip
         if (images.length > 1)
           Container(
-            height: 80,
+            height: 70,
             color: AppColors.white,
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: ListView.builder(
@@ -281,8 +534,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 return GestureDetector(
                   onTap: () => setState(() => _selectedImageIndex = index),
                   child: Container(
-                    width: 64,
-                    height: 64,
+                    width: 54,
+                    height: 54,
                     margin: const EdgeInsets.only(right: 8),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
@@ -298,7 +551,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
                           color: AppColors.background,
-                          child: const Icon(Icons.image, size: 24, color: AppColors.textTertiary),
+                          child: const Icon(Icons.image, size: 20, color: AppColors.textTertiary),
                         ),
                       ),
                     ),
@@ -314,10 +567,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   Widget _buildRatingAndStock(ListingModel listing, int effectiveStock) {
     return Row(
       children: [
-        const Icon(Icons.star, color: AppColors.warning, size: 20),
+        const Icon(Icons.star, color: AppColors.warning, size: 18),
         const SizedBox(width: 4),
-        Text(listing.displayRating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.w600)),
-        Text(' (${listing.displayReviewsCount} reviews)', style: const TextStyle(color: AppColors.textSecondary)),
+        Text(listing.displayRating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(' (${listing.displayReviewsCount} reviews)', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         const Spacer(),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -330,7 +583,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             style: TextStyle(
               color: effectiveStock > 0 ? AppColors.success : AppColors.error,
               fontWeight: FontWeight.w600,
-              fontSize: 12,
+              fontSize: 11,
             ),
           ),
         ),
@@ -357,8 +610,50 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(listing.vendor!.businessName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(listing.vendor!.location, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        listing.vendor!.businessName,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (listing.vendor!.isVerified) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF1D9BF0), Color(0xFF1A8CD8)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF1D9BF0).withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.check, size: 12, color: Colors.white),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(Icons.person_outline, size: 12, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Text(listing.vendor!.durationBadge, style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+                  ],
+                ),
+                if (listing.vendor!.location.isNotEmpty)
+                  Text(listing.vendor!.location, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ],
             ),
           ),
@@ -471,7 +766,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   Widget _buildDetailsSection(ListingModel listing) {
     return Container(
       color: AppColors.white,
-      margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,28 +811,14 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   void _updateSelectedVariant(ListingModel listing) {
-    print('🎯 Updating selected variant...');
-    print('   Selected color: $_selectedColor');
-    print('   Selected size: $_selectedSize');
-    
     final matchingVariants = listing.variants.where((v) {
       if (v.stock <= 0) return false;
       bool colorMatch = _selectedColor == null || v.color == _selectedColor;
       bool sizeMatch = _selectedSize == null || v.size == _selectedSize;
       return colorMatch && sizeMatch;
     }).toList();
-    
-    print('   Found ${matchingVariants.length} matching variants');
-    
+
     _selectedVariant = matchingVariants.firstOrNull;
-    
-    if (_selectedVariant != null) {
-      print('✅ Selected variant: ${_selectedVariant!.id}');
-      print('   Price: ${_selectedVariant!.effectivePrice}');
-      print('   Stock: ${_selectedVariant!.stock}');
-    } else {
-      print('❌ No variant found!');
-    }
   }
 
   void _showFullScreenImage(String imageUrl) {
@@ -599,28 +879,15 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       _showLoginPrompt('Please login to add items to cart');
       return;
     }
-    
-    print('🛒 Add to Cart Triggered');
-    print('   Product ID: ${widget.productId}');
-    print('   Has variants: $hasVariants');
-    print('   Selected Variant: ${_selectedVariant?.id}');
-    print('   Selected Color: $_selectedColor');
-    print('   Selected Size: $_selectedSize');
-    print('   Quantity: $_quantity');
-    
+
     if (hasVariants && _selectedVariant == null) {
-      print('⚠️ No variant selected - showing picker');
       _showVariantPickerModal(listing);
       return;
     }
-    
+
     try {
       final variantId = hasVariants ? _selectedVariant?.id : null;
-      
-      print('📦 Sending to cart provider:');
-      print('   - Variant ID: $variantId');
-      print('   - Attributes: color=$_selectedColor, size=$_selectedSize');
-      
+
       final success = await ref.read(cartProvider.notifier).addToCart(
         widget.productId,
         _quantity,
@@ -630,9 +897,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           if (_selectedSize != null) 'size': _selectedSize!,
         },
       );
-      
+
       if (mounted && success) {
-        print('✅ Successfully added to cart!');
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
@@ -642,11 +908,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               duration: Duration(seconds: 2)
             ),
           );
-      } else {
-        print('❌ Failed to add to cart (success=false)');
       }
     } catch (e) {
-      print('❌ Error adding to cart: $e');
       if (mounted) {
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
@@ -693,7 +956,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       return;
     }
 
-    // Show loading indicator
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -707,7 +969,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       );
 
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
+        Navigator.pop(context);
 
         if (conversationId != null) {
           context.push('/chat/$conversationId');
@@ -724,7 +986,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
+        Navigator.pop(context);
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(

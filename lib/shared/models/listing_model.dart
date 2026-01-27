@@ -129,11 +129,13 @@ class ListingModel {
       weightKg: json['weight_kg'] is num ? json['weight_kg'].toDouble() : null,
       origin: json['origin']?.toString(),
       condition: json['condition']?.toString(),
-      categoryId: json['category_id'] is int 
-          ? json['category_id'] 
-          : json['category_id'] != null 
-            ? int.tryParse(json['category_id']?.toString() ?? '0') 
-            : null,
+      categoryId: json['category_id'] is int
+          ? json['category_id']
+          : json['category_id'] != null
+            ? int.tryParse(json['category_id']?.toString() ?? '0')
+            : (json['category'] != null && json['category'] is Map && json['category']['id'] != null)
+              ? (json['category']['id'] is int ? json['category']['id'] : int.tryParse(json['category']['id'].toString()))
+              : null,
       stock: json['stock'] is int ? json['stock'] : int.tryParse(json['stock']?.toString() ?? '0') ?? 0,
       attributes: json['attributes'] is Map<String, dynamic> 
           ? Map<String, dynamic>.from(json['attributes']) 

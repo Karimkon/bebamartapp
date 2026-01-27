@@ -147,12 +147,12 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
   }
 
   Future<void> _updateOrderStatus(int orderId, String newStatus) async {
-    final success = await ref.read(vendorOrdersProvider.notifier).updateOrderStatus(orderId, newStatus);
+    final result = await ref.read(vendorOrdersProvider.notifier).updateOrderStatus(orderId, newStatus);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? 'Order status updated' : 'Failed to update status'),
-          backgroundColor: success ? AppColors.success : AppColors.error,
+          content: Text(result['success'] == true ? 'Order status updated' : (result['message'] ?? 'Failed to update status')),
+          backgroundColor: result['success'] == true ? AppColors.success : AppColors.error,
         ),
       );
     }

@@ -20,6 +20,46 @@ import '../../auth/providers/auth_provider.dart';
 typedef VendorOrderModel = OrderModel;
 typedef ShippingInfo = ShippingAddressInfo;
 
+// ==================== VENDOR EXCEPTIONS ====================
+class VendorDeactivatedException implements Exception {
+  final String message;
+  final String? supportEmail;
+  final String? supportPhone;
+
+  VendorDeactivatedException({
+    required this.message,
+    this.supportEmail,
+    this.supportPhone,
+  });
+
+  @override
+  String toString() => message;
+}
+
+class VendorOnboardingRequiredException implements Exception {
+  final String message;
+
+  VendorOnboardingRequiredException({
+    this.message = 'You need to complete vendor onboarding first.',
+  });
+
+  @override
+  String toString() => message;
+}
+
+class VendorApprovalPendingException implements Exception {
+  final String message;
+  final String vettingStatus;
+
+  VendorApprovalPendingException({
+    required this.message,
+    required this.vettingStatus,
+  });
+
+  @override
+  String toString() => message;
+}
+
 // ==================== DASHBOARD STATS MODEL ====================
 class VendorDashboardStats {
   final int totalListings;
@@ -36,6 +76,12 @@ class VendorDashboardStats {
   final double averageRating;
   final int totalReviews;
   final int totalViews;
+  // Vetting status fields
+  final String? vettingStatus;
+  final bool isApproved;
+  final bool isPending;
+  final bool isRejected;
+  final String? vettingNotes;
 
   VendorDashboardStats({
     this.totalListings = 0,
@@ -52,6 +98,11 @@ class VendorDashboardStats {
     this.averageRating = 0.0,
     this.totalReviews = 0,
     this.totalViews = 0,
+    this.vettingStatus,
+    this.isApproved = false,
+    this.isPending = false,
+    this.isRejected = false,
+    this.vettingNotes,
   });
 
   factory VendorDashboardStats.fromJson(Map<String, dynamic> json) {
@@ -70,6 +121,11 @@ class VendorDashboardStats {
       averageRating: _parseDouble(json['average_rating']),
       totalReviews: _parseInt(json['total_reviews']),
       totalViews: _parseInt(json['total_views']),
+      vettingStatus: json['vetting_status'] as String?,
+      isApproved: json['is_approved'] == true,
+      isPending: json['is_pending'] == true,
+      isRejected: json['is_rejected'] == true,
+      vettingNotes: json['vetting_notes'] as String?,
     );
   }
 
@@ -100,8 +156,17 @@ final vendorDashboardProvider = FutureProvider<VendorDashboardStats>((ref) async
       final data = response.data as Map;
 
       if (data['success'] == true && data['stats'] != null) {
-        final stats = VendorDashboardStats.fromJson(data['stats']);
-        print('✅ Dashboard stats loaded: ${stats.totalListings} listings, ${stats.totalOrders} orders');
+        // Parse stats with vetting status info from root response
+        final statsJson = Map<String, dynamic>.from(data['stats'] as Map);
+        // Add vetting info from root level to stats
+        statsJson['vetting_status'] = data['vetting_status'];
+        statsJson['is_approved'] = data['is_approved'];
+        statsJson['is_pending'] = data['is_pending'];
+        statsJson['is_rejected'] = data['is_rejected'];
+        statsJson['vetting_notes'] = data['vetting_notes'];
+
+        final stats = VendorDashboardStats.fromJson(statsJson);
+        print('✅ Dashboard stats loaded: ${stats.totalListings} listings, vetting_status: ${stats.vettingStatus}');
         return stats;
       }
     }
@@ -112,14 +177,34 @@ final vendorDashboardProvider = FutureProvider<VendorDashboardStats>((ref) async
     print('❌ DioException in vendorDashboardProvider: ${e.message}');
     print('❌ Response: ${e.response?.data}');
 
-    // Return empty stats on error but don't throw
+    final data = e.response?.data;
+
+    // Check if vendor needs onboarding (404 with requires_onboarding)
     if (e.response?.statusCode == 404) {
-      print('⚠️ Vendor profile not found, returning empty stats');
+      if (data is Map && data['requires_onboarding'] == true) {
+        throw VendorOnboardingRequiredException(
+          message: data['message'] ?? 'You need to complete vendor onboarding first.',
+        );
+      }
+      print('⚠️ Vendor profile not found');
+      throw VendorOnboardingRequiredException();
     }
+
+    // Check if vendor is deactivated (403 response)
+    if (e.response?.statusCode == 403) {
+      if (data is Map && data['is_deactivated'] == true) {
+        throw VendorDeactivatedException(
+          message: data['message'] ?? 'Your vendor account has been deactivated.',
+          supportEmail: data['support_email'],
+          supportPhone: data['support_phone'],
+        );
+      }
+    }
+
     return VendorDashboardStats();
   } catch (e) {
     print('❌ Error in vendorDashboardProvider: $e');
-    return VendorDashboardStats();
+    rethrow; // Re-throw custom exceptions
   }
 });
 
@@ -469,7 +554,7 @@ class VendorOrdersNotifier extends StateNotifier<VendorOrdersState> {
     }
   }
 
-  Future<bool> updateOrderStatus(int orderId, String newStatus) async {
+  Future<Map<String, dynamic>> updateOrderStatus(int orderId, String newStatus) async {
     print('🔄 Updating order $orderId status to $newStatus');
 
     try {
@@ -490,12 +575,56 @@ class VendorOrdersNotifier extends StateNotifier<VendorOrdersState> {
 
         state = state.copyWith(orders: updatedOrders);
         print('✅ Order status updated');
-        return true;
+        return {'success': true, 'message': response.data['message']};
       }
-      return false;
+      return {'success': false, 'message': response.data['message'] ?? 'Failed to update status'};
+    } on DioException catch (e) {
+      print('❌ DioException updating order status: ${e.message}');
+      final responseData = e.response?.data;
+      // Check if COD payment confirmation is required
+      if (responseData is Map && responseData['requires_payment_confirmation'] == true) {
+        return {
+          'success': false,
+          'requires_payment_confirmation': true,
+          'message': responseData['message'] ?? 'COD payment confirmation required',
+        };
+      }
+      return {'success': false, 'message': responseData?['message'] ?? e.message ?? 'Failed to update status'};
     } catch (e) {
       print('❌ Error updating order status: $e');
-      return false;
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Confirm COD payment received (for Cash on Delivery orders)
+  Future<Map<String, dynamic>> confirmCodPayment(int orderId) async {
+    print('🔄 Confirming COD payment for order $orderId');
+
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.post('/api/vendor/orders/$orderId/confirm-cod-payment');
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        // Update local state
+        final updatedOrders = state.orders.map((order) {
+          if (order.id == orderId) {
+            return order.copyWith(status: 'delivered');
+          }
+          return order;
+        }).toList();
+
+        state = state.copyWith(orders: updatedOrders);
+        print('✅ COD payment confirmed');
+        return {'success': true, 'message': response.data['message'] ?? 'Payment confirmed successfully'};
+      }
+      return {'success': false, 'message': response.data['message'] ?? 'Failed to confirm payment'};
+    } on DioException catch (e) {
+      print('❌ DioException confirming COD payment: ${e.message}');
+      final message = e.response?.data?['message'] ?? e.message ?? 'Failed to confirm payment';
+      return {'success': false, 'message': message};
+    } catch (e) {
+      print('❌ Error confirming COD payment: $e');
+      return {'success': false, 'message': e.toString()};
     }
   }
 }
@@ -704,10 +833,24 @@ class CreateListingNotifier extends StateNotifier<CreateListingState> {
     } on DioException catch (e) {
       print('❌ DioException creating listing: ${e.message}');
       print('❌ Response: ${e.response?.data}');
-      state = state.copyWith(
-        isLoading: false,
-        error: e.response?.data?['message'] ?? 'Failed to create listing',
-      );
+
+      final data = e.response?.data;
+      String errorMessage = 'Failed to create listing';
+
+      // Handle specific error cases
+      if (e.response?.statusCode == 403 && data is Map) {
+        if (data['requires_onboarding'] == true) {
+          errorMessage = data['message'] ?? 'Complete vendor onboarding first.';
+        } else if (data['requires_approval'] == true) {
+          errorMessage = data['message'] ?? 'Your vendor application is pending approval.';
+        } else {
+          errorMessage = data['message'] ?? 'You are not authorized to create listings.';
+        }
+      } else if (data is Map && data['message'] != null) {
+        errorMessage = data['message'];
+      }
+
+      state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     } catch (e) {
       print('❌ Error creating listing: $e');
@@ -1130,7 +1273,13 @@ class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final api = ref.read(apiClientProvider);
-      
+
+      // Helper to get filename with proper extension
+      String getFileName(File file, String baseName) {
+        final ext = file.path.split('.').last.toLowerCase();
+        return '$baseName.$ext';
+      }
+
       final formData = FormData.fromMap({
         'vendor_type': vendorType,
         'business_name': businessName,
@@ -1144,25 +1293,53 @@ class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
         'terms': '1',
       });
 
+      // Add files with proper extensions detected from actual file paths
       formData.files.addAll([
-        MapEntry('national_id_front', await MultipartFile.fromFile(nationalIdFront.path, filename: 'id_front.jpg')),
-        MapEntry('national_id_back', await MultipartFile.fromFile(nationalIdBack.path, filename: 'id_back.jpg')),
-        MapEntry('bank_statement', await MultipartFile.fromFile(bankStatement.path, filename: 'bank_statement.pdf')), // Assuming PDF/Image
-        MapEntry('proof_of_address', await MultipartFile.fromFile(proofOfAddress.path, filename: 'proof_address.jpg')),
-        MapEntry('guarantor_id', await MultipartFile.fromFile(guarantorId.path, filename: 'guarantor_id.jpg')),
+        MapEntry('national_id_front', await MultipartFile.fromFile(
+          nationalIdFront.path,
+          filename: getFileName(nationalIdFront, 'id_front'),
+        )),
+        MapEntry('national_id_back', await MultipartFile.fromFile(
+          nationalIdBack.path,
+          filename: getFileName(nationalIdBack, 'id_back'),
+        )),
+        MapEntry('bank_statement', await MultipartFile.fromFile(
+          bankStatement.path,
+          filename: getFileName(bankStatement, 'bank_statement'),
+        )),
+        MapEntry('proof_of_address', await MultipartFile.fromFile(
+          proofOfAddress.path,
+          filename: getFileName(proofOfAddress, 'proof_address'),
+        )),
+        MapEntry('guarantor_id', await MultipartFile.fromFile(
+          guarantorId.path,
+          filename: getFileName(guarantorId, 'guarantor_id'),
+        )),
       ]);
 
       if (companyRegistration != null) {
-        formData.files.add(MapEntry('company_registration', await MultipartFile.fromFile(companyRegistration.path, filename: 'comp_reg.pdf')));
+        formData.files.add(MapEntry('company_registration', await MultipartFile.fromFile(
+          companyRegistration.path,
+          filename: getFileName(companyRegistration, 'comp_reg'),
+        )));
       }
       if (taxCertificate != null) {
-        formData.files.add(MapEntry('tax_certificate', await MultipartFile.fromFile(taxCertificate.path, filename: 'tax_cert.pdf')));
+        formData.files.add(MapEntry('tax_certificate', await MultipartFile.fromFile(
+          taxCertificate.path,
+          filename: getFileName(taxCertificate, 'tax_cert'),
+        )));
       }
 
+      print('📤 Uploading ${formData.files.length} files...');
+
       final response = await api.post(
-        '/api/vendor/onboard', 
+        '/api/vendor/onboard',
         data: formData,
-        options: Options(contentType: 'multipart/form-data'),
+        options: Options(
+          contentType: 'multipart/form-data',
+          sendTimeout: const Duration(minutes: 5), // Extended timeout for file uploads
+          receiveTimeout: const Duration(minutes: 5),
+        ),
       );
       
       if (response.statusCode == 200 && response.data['success'] == true) {
@@ -1179,15 +1356,44 @@ class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
       }
     } on DioException catch (e) {
       print('❌ DioException submitting onboarding: ${e.message}');
+      print('   Status: ${e.response?.statusCode}');
       print('   Response: ${e.response?.data}');
-      state = state.copyWith(
-        isLoading: false, 
-        error: e.response?.data?['message'] ?? e.message,
-      );
+      print('   Type: ${e.type}');
+
+      String errorMessage = 'Failed to submit application';
+
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Upload timed out. Please check your internet connection and try again.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'No internet connection. Please check your network.';
+      } else if (e.response?.statusCode == 422) {
+        // Validation error
+        final errors = e.response?.data?['errors'];
+        if (errors is Map && errors.isNotEmpty) {
+          final firstError = errors.values.first;
+          if (firstError is List && firstError.isNotEmpty) {
+            errorMessage = firstError.first.toString();
+          }
+        } else {
+          errorMessage = e.response?.data?['message'] ?? 'Validation failed';
+        }
+      } else if (e.response?.statusCode == 413) {
+        errorMessage = 'Files are too large. Please use smaller images.';
+      } else if (e.response?.statusCode == 302) {
+        errorMessage = 'Session expired. Please login again.';
+      } else if (e.response?.statusCode == 401) {
+        errorMessage = 'Not authenticated. Please login again.';
+      } else if (e.response?.data != null && e.response?.data is Map) {
+        errorMessage = e.response?.data?['message'] ?? errorMessage;
+      }
+
+      state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     } catch (e) {
       print('❌ Error submitting onboarding: $e');
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: 'An unexpected error occurred: ${e.toString()}');
       return false;
     }
   }

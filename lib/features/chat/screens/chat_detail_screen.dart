@@ -305,6 +305,11 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Handle system messages (safety warnings, etc.)
+    if (message.type == 'system') {
+      return _buildSystemMessage();
+    }
+
     final isMine = message.isMine;
 
     return Align(
@@ -370,6 +375,41 @@ class _MessageBubble extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSystemMessage() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            size: 18,
+            color: Colors.amber.shade700,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              message.body,
+              style: TextStyle(
+                color: Colors.amber.shade800,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
     );
   }

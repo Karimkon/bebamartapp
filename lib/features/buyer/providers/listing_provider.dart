@@ -388,4 +388,111 @@ final searchProvider = StateNotifierProvider<SearchNotifier, SearchState>((ref) 
   return SearchNotifier(api);
 });
 
+// Related products provider key class for stable identity
+class RelatedProductsKey {
+  final int productId;
+  final int? categoryId;
+  final int? vendorId;
+
+  const RelatedProductsKey({
+    required this.productId,
+    this.categoryId,
+    this.vendorId,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RelatedProductsKey &&
+          runtimeType == other.runtimeType &&
+          productId == other.productId &&
+          categoryId == other.categoryId &&
+          vendorId == other.vendorId;
+
+  @override
+  int get hashCode => productId.hashCode ^ categoryId.hashCode ^ vendorId.hashCode;
+}
+
+// Related products provider - fetches products from the same category excluding current product
+final relatedProductsProvider = FutureProvider.family<List<ListingModel>, RelatedProductsKey>((ref, key) async {
+  final api = ref.watch(apiClientProvider);
+  final productId = key.productId;
+  final categoryId = key.categoryId;
+  final vendorId = key.vendorId;
+
+  try {
+    print('🔄 relatedProductsProvider: Fetching related products');
+    print('   Product ID: $productId, Category ID: $categoryId, Vendor ID: $vendorId');
+
+    final listings = <ListingModel>[];
+
+    // First try with category filter if available
+    if (categoryId != null) {
+      final response = await api.get(ApiEndpoints.marketplace, queryParameters: {
+        'per_page': 10,
+        'exclude': productId,
+        'category_id': categoryId,
+      });
+
+      if (response.statusCode == 200 && response.data is Map && response.data['success'] == true) {
+        final data = response.data['data'];
+        List<dynamic> listingsData = data is List ? data : (data is Map ? data['data'] ?? [] : []);
+
+        for (var item in listingsData) {
+          if (item is Map<String, dynamic>) {
+            try {
+              final listing = ListingModel.fromJson(item);
+              if (listing.id != 0 && listing.id != productId) {
+                listings.add(listing);
+                if (listings.length >= 8) break;
+              }
+            } catch (e) {
+              print('   ⚠️ Error parsing listing: $e');
+            }
+          }
+        }
+        print('   Category filter: found ${listings.length} products');
+      }
+    }
+
+    // If no results from category, try without filter (get any other products)
+    if (listings.isEmpty) {
+      print('   🔄 Trying fallback without category filter...');
+      final fallbackResponse = await api.get(ApiEndpoints.marketplace, queryParameters: {
+        'per_page': 10,
+        'exclude': productId,
+      });
+
+      if (fallbackResponse.statusCode == 200 && fallbackResponse.data is Map && fallbackResponse.data['success'] == true) {
+        final data = fallbackResponse.data['data'];
+        List<dynamic> listingsData = data is List ? data : (data is Map ? data['data'] ?? [] : []);
+
+        for (var item in listingsData) {
+          if (item is Map<String, dynamic>) {
+            try {
+              final listing = ListingModel.fromJson(item);
+              if (listing.id != 0 && listing.id != productId) {
+                listings.add(listing);
+                if (listings.length >= 8) break;
+              }
+            } catch (e) {
+              // Skip
+            }
+          }
+        }
+        print('   Fallback: found ${listings.length} products');
+      }
+    }
+
+    print('✅ Total related products: ${listings.length}');
+    return listings;
+  } on DioException catch (e) {
+    print('❌ DioException in relatedProductsProvider: ${e.message}');
+    return [];
+  } catch (e) {
+    print('❌ Error in relatedProductsProvider: $e');
+    return [];
+  }
+});
+
 // No more dummy data - return empty lists when no data available
