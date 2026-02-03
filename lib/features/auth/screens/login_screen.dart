@@ -120,18 +120,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 
                 // Logo
                 Center(
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Icon(
-                      Icons.shopping_bag_rounded,
-                      size: 50,
-                      color: AppColors.white,
-                    ),
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    width: 120,
+                    height: 120,
                   ),
                 ),
                 const SizedBox(height: 32),
