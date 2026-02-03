@@ -90,6 +90,12 @@ class _VendorProductsScreenState extends ConsumerState<VendorProductsScreen>
                     ? _buildEmptyState()
                     : _buildListingsGrid(listingsState.listings),
       ),
+      // Floating Action Button to add new products
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/vendor/products/create'),
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
     );
   }
 
