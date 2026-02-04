@@ -631,6 +631,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
+  String _buildImageUrl(String imagePath) {
+    if (imagePath.startsWith('http')) return imagePath;
+    final baseUrl = AppConstants.baseUrl;
+    if (imagePath.startsWith('/')) return '$baseUrl$imagePath';
+    return '$baseUrl/storage/$imagePath';
+  }
+
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
@@ -991,7 +998,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.network(
-                            '${AppConstants.storageUrl}/${item.thumbnail}',
+                            _buildImageUrl(item.thumbnail!),
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => const Icon(
                               Icons.image_outlined,

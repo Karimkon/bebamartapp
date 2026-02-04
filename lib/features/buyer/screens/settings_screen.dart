@@ -2,9 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../auth/providers/auth_provider.dart';
+
+const String _playStoreUrl = 'https://play.google.com/store/apps/details?id=com.bebamart.app';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -249,18 +253,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _buildSettingsTile(
             icon: Icons.star_outline,
             title: 'Rate App',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('App store link coming soon')),
-              );
+            subtitle: 'Rate us on Play Store',
+            onTap: () async {
+              final uri = Uri.parse(_playStoreUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not open Play Store')),
+                  );
+                }
+              }
             },
           ),
           _buildSettingsTile(
             icon: Icons.share_outlined,
             title: 'Share App',
+            subtitle: 'Share BebaMart with friends',
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Share functionality coming soon')),
+              Share.share(
+                'Check out BebaMart - Your Trusted Marketplace for Uganda! Download now: $_playStoreUrl',
+                subject: 'BebaMart - Your Trusted Marketplace',
               );
             },
           ),

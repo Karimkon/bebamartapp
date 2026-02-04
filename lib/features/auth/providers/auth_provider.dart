@@ -440,6 +440,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     try {
       print('📷 Uploading avatar...');
+      print('📷 File path: ${imageFile.path}');
+
       final formData = FormData.fromMap({
         'avatar': await MultipartFile.fromFile(
           imageFile.path,
@@ -448,6 +450,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       });
 
       final response = await _api.post('/api/user/avatar', data: formData);
+
+      print('📷 Upload response status: ${response.statusCode}');
+      print('📷 Upload response data: ${response.data}');
 
       if (response.statusCode == 200 && response.data['success'] == true) {
         print('✅ Avatar uploaded successfully');
@@ -460,7 +465,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
         return true;
       }
-      print('❌ Avatar upload failed');
+      print('❌ Avatar upload failed: ${response.data}');
+      return false;
+    } on DioException catch (e) {
+      print('❌ DioException uploading avatar: ${e.message}');
+      print('❌ Response: ${e.response?.data}');
+      print('❌ Status: ${e.response?.statusCode}');
       return false;
     } catch (e) {
       print('❌ Error uploading avatar: $e');

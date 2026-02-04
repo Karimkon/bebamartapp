@@ -62,8 +62,14 @@ class CartItem {
   for (final fieldName in imageFieldNames) {
     if (json[fieldName] != null && json[fieldName].toString().trim().isNotEmpty) {
       final relativePath = json[fieldName].toString();
-      // Construct full URL
-      thumbnail = 'http://bebamart.com/storage/$relativePath';
+      // Construct full URL - check if it's already a full URL
+      if (relativePath.startsWith('http')) {
+        thumbnail = relativePath;
+      } else if (relativePath.startsWith('/')) {
+        thumbnail = '${AppConstants.baseUrl}$relativePath';
+      } else {
+        thumbnail = '${AppConstants.storageUrl}/$relativePath';
+      }
       print('✅ Found image in field "$fieldName": $thumbnail');
       break;
     }
@@ -363,10 +369,18 @@ Future<bool> addToCart(int listingId, int quantity, {
   }
 
   Future<bool> removeFromCart(int listingId, {int? variantId}) async {
-    print('🛒 Removing from cart: listing=$listingId');
-    
+    print('🛒 Removing from cart: listing=$listingId, variant=$variantId');
+
     try {
-      final response = await _api.delete(ApiEndpoints.cartRemove(listingId));
+      // For items with variants, send variant_id via query params (more reliable for DELETE)
+      String endpoint = ApiEndpoints.cartRemove(listingId);
+      if (variantId != null) {
+        endpoint = '$endpoint?variant_id=$variantId';
+      }
+
+      final response = await _api.delete(endpoint);
+
+      print('📦 Remove response: ${response.statusCode} - ${response.data}');
 
       if (response.statusCode == 200 && response.data['success'] == true) {
         await loadCart();

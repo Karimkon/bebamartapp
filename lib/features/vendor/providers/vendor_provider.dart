@@ -1255,17 +1255,17 @@ class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
     required String vendorType,
     required String businessName,
     required String country,
-    required String city,
-    required String address,
+    String? city, // Now optional
+    String? address, // Now optional
     required String preferredCurrency,
     double? annualTurnover,
     required File nationalIdFront,
     required File nationalIdBack,
-    required File bankStatement,
-    required File proofOfAddress,
-    required String guarantorName,
-    required String guarantorPhone,
-    required File guarantorId,
+    File? bankStatement, // Now optional
+    File? proofOfAddress, // Now optional
+    String? guarantorName, // Now optional
+    String? guarantorPhone, // Now optional
+    File? guarantorId, // Now optional
     File? companyRegistration,
     File? taxCertificate,
   }) async {
@@ -1284,16 +1284,16 @@ class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
         'vendor_type': vendorType,
         'business_name': businessName,
         'country': country,
-        'city': city,
-        'address': address,
+        if (city != null && city.isNotEmpty) 'city': city,
+        if (address != null && address.isNotEmpty) 'address': address,
         'preferred_currency': preferredCurrency,
         if (annualTurnover != null) 'annual_turnover': annualTurnover.toString(),
-        'guarantor_name': guarantorName,
-        'guarantor_phone': guarantorPhone,
+        if (guarantorName != null && guarantorName.isNotEmpty) 'guarantor_name': guarantorName,
+        if (guarantorPhone != null && guarantorPhone.isNotEmpty) 'guarantor_phone': guarantorPhone,
         'terms': '1',
       });
 
-      // Add files with proper extensions detected from actual file paths
+      // Add required files (National ID)
       formData.files.addAll([
         MapEntry('national_id_front', await MultipartFile.fromFile(
           nationalIdFront.path,
@@ -1303,19 +1303,27 @@ class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
           nationalIdBack.path,
           filename: getFileName(nationalIdBack, 'id_back'),
         )),
-        MapEntry('bank_statement', await MultipartFile.fromFile(
+      ]);
+
+      // Add optional files if provided
+      if (bankStatement != null) {
+        formData.files.add(MapEntry('bank_statement', await MultipartFile.fromFile(
           bankStatement.path,
           filename: getFileName(bankStatement, 'bank_statement'),
-        )),
-        MapEntry('proof_of_address', await MultipartFile.fromFile(
+        )));
+      }
+      if (proofOfAddress != null) {
+        formData.files.add(MapEntry('proof_of_address', await MultipartFile.fromFile(
           proofOfAddress.path,
           filename: getFileName(proofOfAddress, 'proof_address'),
-        )),
-        MapEntry('guarantor_id', await MultipartFile.fromFile(
+        )));
+      }
+      if (guarantorId != null) {
+        formData.files.add(MapEntry('guarantor_id', await MultipartFile.fromFile(
           guarantorId.path,
           filename: getFileName(guarantorId, 'guarantor_id'),
-        )),
-      ]);
+        )));
+      }
 
       if (companyRegistration != null) {
         formData.files.add(MapEntry('company_registration', await MultipartFile.fromFile(
@@ -1401,4 +1409,131 @@ class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
 
 final vendorOnboardingProvider = StateNotifierProvider<VendorOnboardingNotifier, VendorOnboardingState>((ref) {
   return VendorOnboardingNotifier(ref);
+});
+
+// ==================== CREATE SERVICE STATE & NOTIFIER ====================
+class CreateServiceState {
+  final bool isLoading;
+  final String? error;
+
+  CreateServiceState({
+    this.isLoading = false,
+    this.error,
+  });
+
+  CreateServiceState copyWith({
+    bool? isLoading,
+    String? error,
+  }) {
+    return CreateServiceState(
+      isLoading: isLoading ?? this.isLoading,
+      error: error,
+    );
+  }
+}
+
+class CreateServiceNotifier extends StateNotifier<CreateServiceState> {
+  final Ref ref;
+
+  CreateServiceNotifier(this.ref) : super(CreateServiceState());
+
+  Future<bool> createService({
+    required String title,
+    required String description,
+    required String pricingType,
+    double? price,
+    double? priceMax,
+    String? duration,
+    String? location,
+    required String city,
+    bool isMobile = false,
+    String? features,
+    int? categoryId,
+    required List<File> images,
+  }) async {
+    print('🔄 Creating new service: $title');
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final api = ref.read(apiClientProvider);
+
+      // Create FormData for multipart upload
+      final formData = FormData.fromMap({
+        'title': title,
+        'description': description,
+        'pricing_type': pricingType,
+        'city': city,
+        'is_mobile': isMobile ? '1' : '0',
+        if (price != null) 'price': price.toString(),
+        if (priceMax != null) 'price_max': priceMax.toString(),
+        if (duration != null) 'duration': duration,
+        if (location != null) 'location': location,
+        if (features != null) 'features': features,
+        if (categoryId != null) 'service_category_id': categoryId.toString(),
+      });
+
+      // Add images
+      for (int i = 0; i < images.length; i++) {
+        final file = images[i];
+        formData.files.add(MapEntry(
+          'images[$i]',
+          await MultipartFile.fromFile(
+            file.path,
+            filename: 'image_$i.jpg',
+          ),
+        ));
+      }
+
+      final response = await api.post(
+        '/api/vendor/services',
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+        ),
+      );
+
+      state = state.copyWith(isLoading: false);
+
+      if (response.statusCode == 201 && response.data['success'] == true) {
+        print('✅ Service created successfully');
+        // Refresh dashboard stats
+        ref.invalidate(vendorDashboardProvider);
+        return true;
+      }
+
+      state = state.copyWith(error: response.data['message'] ?? 'Failed to create service');
+      return false;
+    } on DioException catch (e) {
+      print('❌ DioException creating service: ${e.message}');
+      print('❌ Response: ${e.response?.data}');
+
+      String errorMessage = 'Failed to create service';
+
+      if (e.response?.statusCode == 403) {
+        final data = e.response?.data;
+        if (data is Map) {
+          if (data['requires_onboarding'] == true) {
+            errorMessage = data['message'] ?? 'Complete vendor onboarding first.';
+          } else if (data['requires_approval'] == true) {
+            errorMessage = data['message'] ?? 'Your vendor application is pending approval.';
+          } else {
+            errorMessage = data['message'] ?? 'You are not authorized to create services.';
+          }
+        }
+      } else if (e.response?.data is Map && e.response?.data['message'] != null) {
+        errorMessage = e.response?.data['message'];
+      }
+
+      state = state.copyWith(isLoading: false, error: errorMessage);
+      return false;
+    } catch (e) {
+      print('❌ Error creating service: $e');
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return false;
+    }
+  }
+}
+
+final createServiceProvider = StateNotifierProvider<CreateServiceNotifier, CreateServiceState>((ref) {
+  return CreateServiceNotifier(ref);
 });

@@ -47,6 +47,7 @@ import 'features/vendor/screens/vendor_onboarding_screen.dart';
 import 'features/vendor/screens/vendor_wallet_screen.dart';
 import 'features/vendor/screens/vendor_notifications_screen.dart';
 import 'features/vendor/screens/vendor_analytics_screen.dart';
+import 'features/vendor/screens/create_service_screen.dart';
 
 // Chat
 import 'features/chat/screens/chat_list_screen.dart';
@@ -62,6 +63,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authState.isAuthenticated;
       final isLoading = authState.isLoading;
       final location = state.matchedLocation;
+
+      // Debug: Log redirect checks for vendor service routes
+      if (location.contains('service')) {
+        print('🔀 Router redirect check: location=$location, isLoggedIn=$isLoggedIn, isLoading=$isLoading');
+      }
 
       // NEVER redirect away from OTP verification
       if (location == '/verify-otp') {
@@ -81,6 +87,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         '/vendor/profile',
         '/vendor/onboarding',
         '/vendor/products/create',
+        '/vendor/services/create',
         '/chat',
       ];
 
@@ -428,6 +435,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/vendor/analytics',
         builder: (context, state) => const VendorAnalyticsScreen(),
+      ),
+      GoRoute(
+        path: '/vendor/services/create',
+        builder: (context, state) => const CreateServiceScreen(),
       ),
 
       // ==================== CHAT ROUTES ====================

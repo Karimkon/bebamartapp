@@ -299,6 +299,30 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
     }
     return null;
   }
+
+  /// Vendor starts conversation with a buyer (for order inquiries)
+  Future<int?> startConversationWithBuyer({
+    required int buyerId,
+    String? initialMessage,
+    String? subject,
+  }) async {
+    try {
+      final response = await _api.post('/api/chat/conversations/with-buyer', data: {
+        'buyer_id': buyerId,
+        if (initialMessage != null) 'initial_message': initialMessage,
+        if (subject != null) 'subject': subject,
+      });
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        // Reload conversations
+        await loadConversations();
+        return response.data['conversation_id'] as int?;
+      }
+    } catch (e) {
+      // Handle error
+    }
+    return null;
+  }
 }
 
 class ChatNotifier extends StateNotifier<ChatState> {

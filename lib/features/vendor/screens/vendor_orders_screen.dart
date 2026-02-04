@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../providers/vendor_provider.dart';
 
@@ -261,8 +262,12 @@ class _OrderCard extends StatelessWidget {
                         if (order.buyer!.phone != null)
                           IconButton(
                             icon: const Icon(Icons.phone_outlined),
-                            onPressed: () {
-                              // TODO: Launch phone dialer
+                            onPressed: () async {
+                              final phone = order.buyer!.phone!;
+                              final uri = Uri.parse('tel:$phone');
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri);
+                              }
                             },
                             color: AppColors.primary,
                           ),

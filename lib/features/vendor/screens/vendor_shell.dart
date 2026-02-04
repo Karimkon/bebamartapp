@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../chat/providers/chat_provider.dart';
-import '../widgets/vendor_sidebar.dart';
 
 class VendorShell extends ConsumerWidget {
   final Widget child;
@@ -14,7 +13,6 @@ class VendorShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      drawer: const VendorSidebar(),
       body: child,
       bottomNavigationBar: const VendorBottomNav(),
     );
@@ -26,33 +24,31 @@ class VendorBottomNav extends ConsumerWidget {
 
   int _calculateSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
-    if (location == '/home') return 0;
-    if (location.startsWith('/vendor/dashboard')) return 1;
-    if (location.startsWith('/vendor/products')) return 2;
-    if (location.startsWith('/vendor/orders')) return 3;
-    if (location.startsWith('/vendor/messages')) return 4;
-    if (location.startsWith('/vendor/profile')) return 5;
-    return 1; // Default to dashboard if in vendor area
+    if (location.startsWith('/vendor/dashboard')) return 0;
+    if (location.startsWith('/vendor/products')) return 1;
+    if (location.startsWith('/vendor/orders')) return 2;
+    if (location.startsWith('/vendor/messages')) return 3;
+    if (location.startsWith('/vendor/profile') ||
+        location.startsWith('/vendor/analytics') ||
+        location.startsWith('/vendor/wallet')) return 4;
+    return 0;
   }
 
   void _onItemTapped(BuildContext context, int index) {
     switch (index) {
       case 0:
-        context.go('/home');
-        break;
-      case 1:
         context.go('/vendor/dashboard');
         break;
-      case 2:
+      case 1:
         context.go('/vendor/products');
         break;
-      case 3:
+      case 2:
         context.go('/vendor/orders');
         break;
-      case 4:
+      case 3:
         context.go('/vendor/messages');
         break;
-      case 5:
+      case 4:
         context.go('/vendor/profile');
         break;
     }
@@ -69,72 +65,54 @@ class VendorBottomNav extends ConsumerWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              Expanded(
-                child: _NavItem(
-                  icon: Icons.storefront_outlined,
-                  activeIcon: Icons.storefront,
-                  label: 'Shop',
-                  isSelected: selectedIndex == 0,
-                  onTap: () => _onItemTapped(context, 0),
-                ),
+              _NavItem(
+                icon: Icons.dashboard_outlined,
+                activeIcon: Icons.dashboard,
+                label: 'Home',
+                isSelected: selectedIndex == 0,
+                onTap: () => _onItemTapped(context, 0),
               ),
-              Expanded(
-                child: _NavItem(
-                  icon: Icons.dashboard_outlined,
-                  activeIcon: Icons.dashboard,
-                  label: 'Dashboard',
-                  isSelected: selectedIndex == 1,
-                  onTap: () => _onItemTapped(context, 1),
-                ),
+              _NavItem(
+                icon: Icons.inventory_2_outlined,
+                activeIcon: Icons.inventory_2,
+                label: 'Products',
+                isSelected: selectedIndex == 1,
+                onTap: () => _onItemTapped(context, 1),
               ),
-              Expanded(
-                child: _NavItem(
-                  icon: Icons.inventory_2_outlined,
-                  activeIcon: Icons.inventory_2,
-                  label: 'Products',
-                  isSelected: selectedIndex == 2,
-                  onTap: () => _onItemTapped(context, 2),
-                ),
+              _NavItem(
+                icon: Icons.receipt_long_outlined,
+                activeIcon: Icons.receipt_long,
+                label: 'Orders',
+                isSelected: selectedIndex == 2,
+                onTap: () => _onItemTapped(context, 2),
               ),
-              Expanded(
-                child: _NavItem(
-                  icon: Icons.shopping_bag_outlined,
-                  activeIcon: Icons.shopping_bag,
-                  label: 'Orders',
-                  isSelected: selectedIndex == 3,
-                  onTap: () => _onItemTapped(context, 3),
-                ),
+              _NavItem(
+                icon: Icons.chat_bubble_outline,
+                activeIcon: Icons.chat_bubble,
+                label: 'Chat',
+                isSelected: selectedIndex == 3,
+                badge: unreadCount,
+                onTap: () => _onItemTapped(context, 3),
               ),
-              Expanded(
-                child: _NavItem(
-                  icon: Icons.chat_bubble_outline,
-                  activeIcon: Icons.chat_bubble,
-                  label: 'Messages',
-                  isSelected: selectedIndex == 4,
-                  badge: unreadCount,
-                  onTap: () => _onItemTapped(context, 4),
-                ),
-              ),
-              Expanded(
-                child: _NavItem(
-                  icon: Icons.person_outline,
-                  activeIcon: Icons.person,
-                  label: 'Profile',
-                  isSelected: selectedIndex == 5,
-                  onTap: () => _onItemTapped(context, 5),
-                ),
+              _NavItem(
+                icon: Icons.person_outline,
+                activeIcon: Icons.person,
+                label: 'Profile',
+                isSelected: selectedIndex == 4,
+                onTap: () => _onItemTapped(context, 4),
               ),
             ],
           ),
@@ -163,33 +141,37 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(
-                  isSelected ? activeIcon : icon,
-                  color: isSelected ? AppColors.primary : AppColors.textSecondary,
-                  size: 20,
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary.withOpacity(0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    isSelected ? activeIcon : icon,
+                    color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                    size: 20,
+                  ),
                 ),
                 if (badge != null && badge! > 0)
                   Positioned(
-                    right: -8,
+                    right: -4,
                     top: -4,
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(3),
                       decoration: const BoxDecoration(
                         color: AppColors.error,
                         shape: BoxShape.circle,
@@ -199,7 +181,7 @@ class _NavItem extends StatelessWidget {
                         badge! > 99 ? '99+' : badge.toString(),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 10,
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
@@ -209,15 +191,12 @@ class _NavItem extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 2),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? AppColors.primary : AppColors.textSecondary,
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ],

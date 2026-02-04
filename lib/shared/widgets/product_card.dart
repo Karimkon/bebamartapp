@@ -185,7 +185,7 @@ class ProductCard extends StatelessWidget {
                 ],
               ),
 
-              // Vendor info with duration badge and verified tick
+              // Vendor info with duration badge and verified tick (matches webapp)
               if (listing.vendor != null) ...[
                 const SizedBox(height: 6),
                 Row(
@@ -198,9 +198,9 @@ class ProductCard extends StatelessWidget {
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        listing.vendor!.durationBadge,
+                        listing.vendor!.durationBadge.replaceAll(' on BebaMart', ''),
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 10,
                           color: Colors.grey[600],
                         ),
                         maxLines: 1,
@@ -208,29 +208,10 @@ class ProductCard extends StatelessWidget {
                       ),
                     ),
                     if (listing.vendor!.isVerified)
-                      Container(
-                        width: 16,
-                        height: 16,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF1D9BF0), Color(0xFF1A8CD8)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0xFF1D9BF0).withOpacity(0.3),
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.check,
-                          size: 10,
-                          color: Colors.white,
-                        ),
+                      const Icon(
+                        Icons.verified,
+                        size: 16,
+                        color: Color(0xFF3B82F6), // blue-500
                       ),
                   ],
                 ),

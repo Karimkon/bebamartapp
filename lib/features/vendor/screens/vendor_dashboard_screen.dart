@@ -2,9 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_theme.dart';
-import '../providers/vendor_provider.dart';
 import '../../../core/constants/app_constants.dart';
+import '../providers/vendor_provider.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -23,7 +24,6 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Load data when screen initializes
     Future.microtask(() {
       ref.invalidate(vendorDashboardProvider);
       ref.invalidate(vendorRecentOrdersProvider);
@@ -38,34 +38,30 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Auto-refresh when app comes back to foreground
     if (state == AppLifecycleState.resumed) {
-      _refreshDashboard();
+      // Only refresh if this screen is actually visible (not covered by another route)
+      final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? false;
+      if (isCurrentRoute) {
+        _refreshDashboard();
+      }
     }
   }
 
   Future<void> _refreshDashboard() async {
     ref.invalidate(vendorDashboardProvider);
     ref.invalidate(vendorRecentOrdersProvider);
-    // Also refresh user data to get updated vendor profile
     ref.read(authProvider.notifier).refreshUser();
   }
 
   Future<void> _checkStatus() async {
     setState(() => _isCheckingStatus = true);
-
-    // Refresh everything
     ref.invalidate(vendorDashboardProvider);
     ref.invalidate(vendorRecentOrdersProvider);
     await ref.read(authProvider.notifier).refreshUser();
-
-    // Wait a bit for the provider to reload
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (mounted) {
       setState(() => _isCheckingStatus = false);
-
-      // Check if approved now
       final dashboardAsync = ref.read(vendorDashboardProvider);
       dashboardAsync.whenData((stats) {
         if (stats.isApproved) {
@@ -84,122 +80,66 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
   Widget build(BuildContext context) {
     final dashboardAsync = ref.watch(vendorDashboardProvider);
     final recentOrdersAsync = ref.watch(vendorRecentOrdersProvider);
+    final user = ref.watch(currentUserProvider);
+    final vendor = user?.vendorProfile;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        actions: [
-          Consumer(
-            builder: (context, ref, child) {
-              final unreadCountAsync = ref.watch(unreadCountProvider);
-              final unreadCount = unreadCountAsync.valueOrNull ?? 0;
-
-              return IconButton(
-                icon: Stack(
-                  children: [
-                    const Icon(Icons.chat_bubble_outline),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                          decoration: const BoxDecoration(
-                            color: AppColors.error,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            unreadCount > 99 ? '99+' : unreadCount.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                onPressed: () => context.push('/vendor/messages'),
-              );
-            },
-          ),
-        ],
-      ),
+      backgroundColor: const Color(0xFFF5F6FA),
       body: RefreshIndicator(
         onRefresh: _refreshDashboard,
         child: dashboardAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, stack) {
-            // Check if vendor is deactivated
             if (error is VendorDeactivatedException) {
               return _buildDeactivatedScreen(error);
             }
-            // Check if vendor needs onboarding (no vendor profile yet)
             if (error is VendorOnboardingRequiredException) {
               return _buildOnboardingRequiredScreen();
             }
-            // Check if pending approval
             if (error is VendorApprovalPendingException) {
               return _buildPendingApprovalScreen();
             }
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: AppColors.error),
-                  const SizedBox(height: 16),
-                  Text('Failed to load dashboard', style: TextStyle(color: AppColors.textSecondary)),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: _refreshDashboard,
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
+            return _buildErrorScreen();
           },
           data: (stats) {
-            // Check if vendor is pending approval
-            if (stats.isPending) {
-              return _buildPendingApprovalScreen();
-            }
-            // Check if vendor was rejected
-            if (stats.isRejected) {
-              return _buildRejectedScreen(stats.vettingNotes);
-            }
-            return SingleChildScrollView(
+            if (stats.isPending) return _buildPendingApprovalScreen();
+            if (stats.isRejected) return _buildRejectedScreen(stats.vettingNotes);
+
+            return CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Welcome Section
-                  _buildWelcomeCard(stats),
-                  const SizedBox(height: 20),
+              slivers: [
+                // Custom App Bar
+                SliverToBoxAdapter(
+                  child: _buildHeader(user, vendor, stats),
+                ),
 
-                  // Stats Grid
-                  _buildStatsGrid(stats),
-                  const SizedBox(height: 20),
+                // Stats Cards
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Quick Stats Row
+                        _buildQuickStatsRow(stats),
+                        const SizedBox(height: 20),
 
-                  // Quick Actions
-                  _buildQuickActions(),
-                  const SizedBox(height: 20),
+                        // Revenue Card
+                        _buildRevenueCard(stats),
+                        const SizedBox(height: 20),
 
-                  // Revenue Card
-                  _buildRevenueCard(stats),
-                  const SizedBox(height: 20),
+                        // Quick Actions
+                        _buildQuickActions(),
+                        const SizedBox(height: 20),
 
-                  // Recent Orders Section
-                  _buildRecentOrdersSection(recentOrdersAsync),
-                  const SizedBox(height: 20),
-                ],
-              ),
+                        // Recent Orders
+                        _buildRecentOrdersSection(recentOrdersAsync),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -207,168 +147,241 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
     );
   }
 
-  Widget _buildWelcomeCard(VendorDashboardStats stats) {
+  Widget _buildHeader(dynamic user, dynamic vendor, VendorDashboardStats stats) {
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary,
+            AppColors.primary.withOpacity(0.85),
+          ],
         ),
-        borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Welcome back!',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Your Store',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Top Row - Avatar, Name, Actions
+              Row(
+                children: [
+                  // Avatar
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: user?.avatar != null
+                          ? CachedNetworkImage(
+                              imageUrl: user!.avatar!.startsWith('http')
+                                  ? user.avatar!
+                                  : '${AppConstants.storageUrl}/${user.avatar}',
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => _buildAvatarPlaceholder(user?.name),
+                            )
+                          : _buildAvatarPlaceholder(user?.name),
+                    ),
                   ),
+                  const SizedBox(width: 14),
+
+                  // Name & Store
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome back!',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          vendor?.businessName ?? user?.name ?? 'Vendor',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Actions
+                  _buildHeaderAction(
+                    Icons.storefront_outlined,
+                    () => context.go('/home'),
+                    tooltip: 'Shop',
+                  ),
+                  const SizedBox(width: 8),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
+                      return _buildHeaderAction(
+                        Icons.notifications_outlined,
+                        () => context.push('/vendor/notifications'),
+                        badge: unread,
+                        tooltip: 'Notifications',
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Stats Summary
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                const SizedBox(height: 12),
-                Row(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildMiniStat(Icons.star, '${stats.averageRating.toStringAsFixed(1)}', 'Rating'),
-                    const SizedBox(width: 20),
-                    _buildMiniStat(Icons.visibility, '${stats.totalViews}', 'Views'),
+                    _buildHeaderStat('${stats.totalListings}', 'Products'),
+                    _buildVerticalDivider(),
+                    _buildHeaderStat('${stats.totalOrders}', 'Orders'),
+                    _buildVerticalDivider(),
+                    _buildHeaderStat('${stats.averageRating.toStringAsFixed(1)}', 'Rating'),
+                    _buildVerticalDivider(),
+                    _buildHeaderStat('${stats.totalViews}', 'Views'),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.store, color: Colors.white, size: 40),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildMiniStat(IconData icon, String value, String label) {
+  Widget _buildAvatarPlaceholder(String? name) {
+    return Container(
+      color: AppColors.primary.withOpacity(0.1),
+      child: Center(
+        child: Text(
+          (name != null && name.isNotEmpty) ? name[0].toUpperCase() : 'V',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderAction(IconData icon, VoidCallback onTap, {int? badge, String? tooltip}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Stack(
+          children: [
+            Center(child: Icon(icon, color: Colors.white, size: 22)),
+            if (badge != null && badge > 0)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderStat(String value, String label) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVerticalDivider() {
+    return Container(
+      width: 1,
+      height: 40,
+      color: Colors.white.withOpacity(0.3),
+    );
+  }
+
+  Widget _buildQuickStatsRow(VendorDashboardStats stats) {
     return Row(
       children: [
-        Icon(icon, color: Colors.white70, size: 16),
-        const SizedBox(width: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-      ],
-    );
-  }
-
-  Widget _buildStatsGrid(VendorDashboardStats stats) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.1, // Reduced further to prevent overflow
-      children: [
-        _StatCard(
-          title: 'Total Products',
-          value: '${stats.totalListings}',
-          subtitle: '${stats.activeListings} active',
-          icon: Icons.inventory_2_outlined,
-          color: Colors.blue,
-          onTap: () => context.go('/vendor/products'),
+        Expanded(
+          child: _StatMiniCard(
+            icon: Icons.pending_actions,
+            label: 'Pending',
+            value: '${stats.pendingOrders}',
+            color: Colors.orange,
+            onTap: () => context.go('/vendor/orders'),
+          ),
         ),
-        _StatCard(
-          title: 'Total Orders',
-          value: '${stats.totalOrders}',
-          subtitle: '${stats.pendingOrders} pending',
-          icon: Icons.shopping_bag_outlined,
-          color: Colors.orange,
-          onTap: () => context.go('/vendor/orders'),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatMiniCard(
+            icon: Icons.local_shipping_outlined,
+            label: 'Processing',
+            value: '${stats.processingOrders}',
+            color: Colors.blue,
+            onTap: () => context.go('/vendor/orders'),
+          ),
         ),
-        _StatCard(
-          title: 'Processing',
-          value: '${stats.processingOrders}',
-          subtitle: 'In progress',
-          icon: Icons.local_shipping_outlined,
-          color: Colors.purple,
-          onTap: () => context.go('/vendor/orders'),
-        ),
-        _StatCard(
-          title: 'Delivered',
-          value: '${stats.deliveredOrders}',
-          subtitle: 'Completed',
-          icon: Icons.check_circle_outline,
-          color: Colors.green,
-          onTap: () => context.go('/vendor/orders'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Quick Actions',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.add_circle_outline,
-                label: 'Add Product',
-                color: AppColors.primary,
-                onTap: () => context.push('/vendor/products/create'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.list_alt_outlined,
-                label: 'Store Orders',
-                color: Colors.orange,
-                onTap: () => context.go('/vendor/orders'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.analytics_outlined,
-                label: 'Analytics',
-                color: Colors.purple,
-                onTap: () => context.push('/vendor/analytics'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.shopping_bag_outlined,
-                label: 'My Purchases',
-                color: Colors.teal,
-                onTap: () => context.push('/buyer/orders'),
-              ),
-            ),
-          ],
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatMiniCard(
+            icon: Icons.check_circle_outline,
+            label: 'Delivered',
+            value: '${stats.deliveredOrders}',
+            color: Colors.green,
+            onTap: () => context.go('/vendor/orders'),
+          ),
         ),
       ],
     );
@@ -379,12 +392,12 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -395,8 +408,11 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Revenue Overview',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                'Revenue',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -406,7 +422,11 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
                 ),
                 child: const Text(
                   'This Month',
-                  style: TextStyle(color: Colors.green, fontSize: 12),
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -419,14 +439,17 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Total Revenue',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      'Total Earnings',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       'UGX ${_formatCurrency(stats.totalRevenue)}',
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: Colors.green,
                       ),
@@ -434,21 +457,28 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
                   ],
                 ),
               ),
-              Container(width: 1, height: 50, color: Colors.grey.shade200),
+              Container(
+                width: 1,
+                height: 50,
+                color: Colors.grey.shade200,
+              ),
               const SizedBox(width: 20),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Monthly Revenue',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      'Available',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
-                      'UGX ${_formatCurrency(stats.monthlyRevenue)}',
+                      'UGX ${_formatCurrency(stats.availableBalance)}',
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -458,25 +488,81 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
             ],
           ),
           const SizedBox(height: 16),
-          Divider(color: Colors.grey.shade200),
-          const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _BalanceInfo(
-                label: 'Available Balance',
-                amount: stats.availableBalance,
-                color: Colors.green,
-              ),
-              _BalanceInfo(
-                label: 'Pending Balance',
-                amount: stats.pendingBalance,
-                color: Colors.orange,
+              Icon(Icons.info_outline, size: 16, color: AppColors.textTertiary),
+              const SizedBox(width: 6),
+              Text(
+                'Pending: UGX ${_formatCurrency(stats.pendingBalance)}',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Actions',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.add_box_outlined,
+                label: 'Add Product',
+                color: AppColors.primary,
+                onTap: () => context.push('/vendor/products/create'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.analytics_outlined,
+                label: 'Analytics',
+                color: Colors.purple,
+                onTap: () => context.push('/vendor/analytics'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.shopping_cart_outlined,
+                label: 'My Orders',
+                color: Colors.teal,
+                onTap: () => context.push('/buyer/orders'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.home_repair_service_outlined,
+                label: 'Add Service',
+                color: Colors.orange,
+                onTap: () => context.push('/vendor/services/create'),
+              ),
+            ),
+            const Expanded(flex: 2, child: SizedBox()),
+          ],
+        ),
+      ],
     );
   }
 
@@ -489,59 +575,111 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
           children: [
             const Text(
               'Recent Orders',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             TextButton(
               onPressed: () => context.go('/vendor/orders'),
-              child: Text('View All', style: TextStyle(color: AppColors.primary)),
+              child: Text(
+                'View All',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 12),
         recentOrdersAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => Center(
-            child: Text('Failed to load orders', style: TextStyle(color: AppColors.textSecondary)),
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(),
+            ),
           ),
+          error: (_, __) => _buildEmptyOrders(),
           data: (orders) {
-            if (orders.isEmpty) {
-              return Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.inbox_outlined, size: 48, color: AppColors.textTertiary),
-                      const SizedBox(height: 12),
-                      Text('No recent orders', style: TextStyle(color: AppColors.textSecondary)),
-                    ],
-                  ),
-                ),
-              );
-            }
+            if (orders.isEmpty) return _buildEmptyOrders();
 
             return Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
               ),
               child: ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: orders.length,
-                separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
-                itemBuilder: (context, index) {
-                  final order = orders[index];
-                  return _OrderListItem(order: order);
-                },
+                separatorBuilder: (_, __) => Divider(
+                  height: 1,
+                  color: Colors.grey.shade100,
+                ),
+                itemBuilder: (context, index) => _OrderItem(order: orders[index]),
               ),
             );
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildEmptyOrders() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(
+              Icons.inbox_outlined,
+              size: 48,
+              color: AppColors.textTertiary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No recent orders',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: AppColors.error),
+          const SizedBox(height: 16),
+          Text(
+            'Failed to load dashboard',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _refreshDashboard,
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -554,397 +692,94 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
     return amount.toStringAsFixed(0);
   }
 
+  // Keep the pending/rejected/deactivated screens from original
   Widget _buildDeactivatedScreen(VendorDeactivatedException error) {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(height: 60),
-            // Warning Icon
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.block,
-                size: 50,
-                color: AppColors.error,
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Title
-            const Text(
-              'Account Deactivated',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-
-            // Message
-            Text(
-              error.message,
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-
-            // Contact Support Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    'Contact Support',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  if (error.supportEmail != null) ...[
-                    _ContactRow(
-                      icon: Icons.email_outlined,
-                      label: error.supportEmail!,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  if (error.supportPhone != null)
-                    _ContactRow(
-                      icon: Icons.phone_outlined,
-                      label: error.supportPhone!,
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Appeal Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // TODO: Open email or support page
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please contact support to submit an appeal'),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.send_outlined),
-                label: const Text('Submit an Appeal'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Sign Out Button
-            TextButton.icon(
-              onPressed: () {
-                ref.read(authProvider.notifier).logout();
-                context.go('/');
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Sign Out'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return _buildStatusScreen(
+      icon: Icons.block,
+      iconColor: AppColors.error,
+      title: 'Account Deactivated',
+      message: error.message,
+      actionLabel: 'Contact Support',
+      onAction: () {},
+      showLogout: true,
     );
   }
 
   Widget _buildOnboardingRequiredScreen() {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(height: 60),
-            // Icon
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.store_mall_directory_outlined,
-                size: 50,
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            const Text(
-              'Complete Your Vendor Profile',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-
-            Text(
-              'Before you can start selling, you need to complete your vendor registration by providing your business details and documents.',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => context.push('/vendor/onboarding'),
-                icon: const Icon(Icons.arrow_forward),
-                label: const Text('Complete Registration'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return _buildStatusScreen(
+      icon: Icons.store_mall_directory_outlined,
+      iconColor: AppColors.primary,
+      title: 'Complete Your Profile',
+      message: 'Before you can start selling, complete your vendor registration.',
+      actionLabel: 'Complete Registration',
+      onAction: () => context.push('/vendor/onboarding'),
     );
   }
 
   Widget _buildPendingApprovalScreen() {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(height: 60),
-            // Icon
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.hourglass_top_outlined,
-                size: 50,
-                color: Colors.orange,
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            const Text(
-              'Application Under Review',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-
-            Text(
-              'Your vendor application is being reviewed by our team. This usually takes 24-48 hours. You will receive an email notification once approved.',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: Colors.orange),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'You cannot list products until your application is approved.',
-                      style: TextStyle(
-                        color: Colors.orange.shade800,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _isCheckingStatus ? null : _checkStatus,
-                icon: _isCheckingStatus
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh),
-                label: Text(_isCheckingStatus ? 'Checking...' : 'Check Status'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Sign out option
-            TextButton.icon(
-              onPressed: () {
-                ref.read(authProvider.notifier).logout();
-                context.go('/');
-              },
-              icon: const Icon(Icons.logout, size: 18),
-              label: const Text('Sign Out'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return _buildStatusScreen(
+      icon: Icons.hourglass_top_outlined,
+      iconColor: Colors.orange,
+      title: 'Under Review',
+      message: 'Your application is being reviewed. This usually takes 24-48 hours.',
+      actionLabel: _isCheckingStatus ? 'Checking...' : 'Check Status',
+      onAction: _isCheckingStatus ? null : _checkStatus,
+      showLogout: true,
     );
   }
 
-  Widget _buildRejectedScreen(String? rejectionNotes) {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Container(
+  Widget _buildRejectedScreen(String? notes) {
+    return _buildStatusScreen(
+      icon: Icons.cancel_outlined,
+      iconColor: AppColors.error,
+      title: 'Application Rejected',
+      message: notes ?? 'Your application was not approved. Please resubmit.',
+      actionLabel: 'Resubmit',
+      onAction: () => context.push('/vendor/onboarding'),
+    );
+  }
+
+  Widget _buildStatusScreen({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String message,
+    required String actionLabel,
+    VoidCallback? onAction,
+    bool showLogout = false,
+  }) {
+    return SafeArea(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const SizedBox(height: 60),
-            // Icon
             Container(
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.1),
+                color: iconColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.cancel_outlined,
-                size: 50,
-                color: AppColors.error,
-              ),
+              child: Icon(icon, size: 50, color: iconColor),
             ),
             const SizedBox(height: 32),
-
-            const Text(
-              'Application Rejected',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-
             Text(
-              'Unfortunately, your vendor application was not approved. Please review the feedback below and resubmit your application.',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-              ),
+              message,
+              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
-
-            if (rejectionNotes != null && rejectionNotes.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.error.withOpacity(0.3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.feedback_outlined, color: AppColors.error, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Reason for Rejection:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.error,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      rejectionNotes,
-                      style: TextStyle(color: AppColors.textPrimary),
-                    ),
-                  ],
-                ),
-              ),
             const SizedBox(height: 32),
-
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => context.push('/vendor/onboarding'),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Resubmit Application'),
+              child: ElevatedButton(
+                onPressed: onAction,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -953,8 +788,23 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
+                child: Text(actionLabel),
               ),
             ),
+            if (showLogout) ...[
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: () {
+                  ref.read(authProvider.notifier).logout();
+                  context.go('/');
+                },
+                icon: const Icon(Icons.logout),
+                label: const Text('Sign Out'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -962,45 +812,18 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
   }
 }
 
-class _ContactRow extends StatelessWidget {
+// Helper Widgets
+class _StatMiniCard extends StatelessWidget {
   final IconData icon;
   final String label;
-
-  const _ContactRow({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, color: AppColors.primary, size: 20),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            color: AppColors.primary,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final String title;
   final String value;
-  final String subtitle;
-  final IconData icon;
   final Color color;
   final VoidCallback? onTap;
 
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
+  const _StatMiniCard({
     required this.icon,
+    required this.label,
+    required this.value,
     required this.color,
     this.onTap,
   });
@@ -1013,49 +836,40 @@ class _StatCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withOpacity(0.04),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textTertiary),
-              ],
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  title,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                ),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: color, fontSize: 11),
-                ),
-              ],
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
           ],
         ),
@@ -1064,13 +878,13 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _QuickActionCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
 
-  const _ActionButton({
+  const _QuickActionCard({
     required this.icon,
     required this.label,
     required this.color,
@@ -1082,11 +896,11 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Column(
           children: [
@@ -1094,7 +908,11 @@ class _ActionButton extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label,
-              style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1104,53 +922,27 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _BalanceInfo extends StatelessWidget {
-  final String label;
-  final double amount;
-  final Color color;
-
-  const _BalanceInfo({
-    required this.label,
-    required this.amount,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-        const SizedBox(height: 4),
-        Text(
-          'UGX ${amount.toStringAsFixed(0)}',
-          style: TextStyle(fontWeight: FontWeight.bold, color: color),
-        ),
-      ],
-    );
-  }
-}
-
-class _OrderListItem extends StatelessWidget {
+class _OrderItem extends StatelessWidget {
   final VendorOrderModel order;
 
-  const _OrderListItem({required this.order});
+  const _OrderItem({required this.order});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       onTap: () => context.push('/vendor/orders/${order.id}'),
       leading: Container(
-        width: 40,
-        height: 40,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: _getStatusColor(order.status).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
           _getStatusIcon(order.status),
           color: _getStatusColor(order.status),
-          size: 20,
+          size: 24,
         ),
       ),
       title: Text(
@@ -1159,7 +951,10 @@ class _OrderListItem extends StatelessWidget {
       ),
       subtitle: Text(
         order.buyer?.name ?? 'Customer',
-        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        style: TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 13,
+        ),
       ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1167,20 +962,24 @@ class _OrderListItem extends StatelessWidget {
         children: [
           Text(
             'UGX ${order.total.toStringAsFixed(0)}',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
           ),
+          const SizedBox(height: 4),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: _getStatusColor(order.status).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               order.statusDisplay,
               style: TextStyle(
                 color: _getStatusColor(order.status),
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

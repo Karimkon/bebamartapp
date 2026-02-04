@@ -80,10 +80,11 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_idFront == null || _idBack == null || _bankStatement == null || _proofOfAddress == null || _guarantorId == null) {
+    // Only National ID front and back are required
+    if (_idFront == null || _idBack == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please upload all required verification documents'),
+          content: Text('Please upload your National ID (front and back)'),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
@@ -127,17 +128,17 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
       vendorType: _vendorType,
       businessName: _businessNameController.text,
       country: _country,
-      city: _cityController.text,
-      address: _addressController.text,
+      city: _cityController.text.isNotEmpty ? _cityController.text : null,
+      address: _addressController.text.isNotEmpty ? _addressController.text : null,
       preferredCurrency: _currency,
       annualTurnover: double.tryParse(_annualTurnoverController.text),
       nationalIdFront: _idFront!,
       nationalIdBack: _idBack!,
-      bankStatement: _bankStatement!,
-      proofOfAddress: _proofOfAddress!,
-      guarantorName: _guarantorNameController.text,
-      guarantorPhone: _guarantorPhoneController.text,
-      guarantorId: _guarantorId!,
+      bankStatement: _bankStatement, // Now optional
+      proofOfAddress: _proofOfAddress, // Now optional
+      guarantorName: _guarantorNameController.text.isNotEmpty ? _guarantorNameController.text : null,
+      guarantorPhone: _guarantorPhoneController.text.isNotEmpty ? _guarantorPhoneController.text : null,
+      guarantorId: _guarantorId, // Now optional
       companyRegistration: _compReg,
       taxCertificate: _taxCert,
     );
@@ -312,8 +313,7 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                               Expanded(
                                 child: TextFormField(
                                   controller: _cityController,
-                                  decoration: const InputDecoration(labelText: 'City'),
-                                  validator: (v) => v!.isEmpty ? 'Required' : null,
+                                  decoration: const InputDecoration(labelText: 'City (Optional)'),
                                 ),
                               ),
                             ],
@@ -350,11 +350,10 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                           TextFormField(
                             controller: _addressController,
                             decoration: const InputDecoration(
-                              labelText: 'Business Address',
+                              labelText: 'Business Address (Optional)',
                               hintText: 'Plot number, Street, etc.',
                             ),
                             maxLines: 2,
-                            validator: (v) => v!.isEmpty ? 'Required' : null,
                           ),
                         ],
                       ),
@@ -364,16 +363,22 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                   const SizedBox(height: 24),
                   const Text('Required Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 16),
-                  
+
                   _buildDocPicker('National ID (Front Side)', _idFront, 'id_front'),
                   _buildDocPicker('National ID (Back Side)', _idBack, 'id_back'),
-                  _buildDocPicker('Bank Statement (Last 3 Months)', _bankStatement, 'bank'),
-                  _buildDocPicker('Proof of Address (Utility bill/rental)', _proofOfAddress, 'address'),
-                  
+
                   const SizedBox(height: 24),
-                  const Text('Guarantor Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Text('Optional Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('(Higher chance of faster approval)', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
                   const SizedBox(height: 16),
-                  
+
+                  _buildDocPicker('Bank Statement (Last 3 Months)', _bankStatement, 'bank', required: false),
+                  _buildDocPicker('Proof of Address (Utility bill/rental)', _proofOfAddress, 'address', required: false),
+
+                  const SizedBox(height: 24),
+                  const Text('Guarantor Information (Optional)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 16),
+
                   Card(
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -387,17 +392,15 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                           TextFormField(
                             controller: _guarantorNameController,
                             decoration: const InputDecoration(labelText: 'Guarantor Full Name'),
-                            validator: (v) => v!.isEmpty ? 'Required' : null,
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
                             controller: _guarantorPhoneController,
                             decoration: const InputDecoration(labelText: 'Guarantor Phone Number'),
                             keyboardType: TextInputType.phone,
-                            validator: (v) => v!.isEmpty ? 'Required' : null,
                           ),
                           const SizedBox(height: 16),
-                          _buildDocPicker('Guarantor ID (Front Side)', _guarantorId, 'guarantor'),
+                          _buildDocPicker('Guarantor ID (Front Side)', _guarantorId, 'guarantor', required: false),
                         ],
                       ),
                     ),

@@ -1226,12 +1226,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
+                      // Vendor duration + verification badge (like webapp)
                       if (listing.vendor != null)
-                        Text(
-                          listing.vendor!.businessName,
-                          style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.person_outline,
+                              size: 10,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                listing.vendor!.durationBadge.replaceAll(' on BebaMart', ''),
+                                style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (listing.vendor!.isVerified)
+                              const Icon(
+                                Icons.verified,
+                                size: 16,
+                                color: Color(0xFF3B82F6), // blue-500
+                              ),
+                          ],
                         ),
                     ],
                   ),

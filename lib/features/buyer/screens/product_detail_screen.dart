@@ -620,26 +620,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       ),
                     ),
                     if (listing.vendor!.isVerified) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF1D9BF0), Color(0xFF1A8CD8)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF1D9BF0).withOpacity(0.3),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.check, size: 12, color: Colors.white),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.verified,
+                        size: 18,
+                        color: Color(0xFF3B82F6), // blue-500
                       ),
                     ],
                   ],

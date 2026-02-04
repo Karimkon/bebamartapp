@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../providers/vendor_provider.dart';
+import '../../chat/providers/chat_provider.dart';
 
 class VendorOrderDetailScreen extends ConsumerStatefulWidget {
   final int orderId;
@@ -158,7 +160,7 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
           const SizedBox(height: 16),
 
           // Customer Info
-          _buildCustomerCard(order),
+          _buildCustomerCard(order, order.buyer),
           const SizedBox(height: 16),
 
           // Shipping Address
@@ -385,8 +387,7 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
     );
   }
 
-  Widget _buildCustomerCard(VendorOrderModel order) {
-    final buyer = order.buyer;
+  Widget _buildCustomerCard(VendorOrderModel order, dynamic buyer) {
     if (buyer == null) return const SizedBox.shrink();
 
     return Container(
@@ -452,9 +453,7 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: Navigate to chat
-                  },
+                  onPressed: () => _openMessageDialog(order, buyer),
                   icon: const Icon(Icons.chat_outlined),
                   label: const Text('Message'),
                 ),
@@ -802,6 +801,185 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
             child: const Text('Yes, Decline'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openMessageDialog(VendorOrderModel order, dynamic buyer) {
+    // Pre-fill message with order details
+    final orderItems = order.items.map((item) => '- ${item.title} x${item.quantity}').join('\n');
+    final defaultMessage = '''Hi ${buyer?.name ?? "Customer"},
+
+Regarding your order #${order.orderNumber}:
+$orderItems
+
+Total: UGX ${order.total.toStringAsFixed(0)}
+
+''';
+
+    final messageController = TextEditingController(text: defaultMessage);
+    bool isSending = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(dialogContext).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Send Message',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(dialogContext),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'To: ${buyer?.name ?? "Customer"} ${buyer?.phone != null ? "(${buyer.phone})" : ""}',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: messageController,
+                maxLines: 8,
+                decoration: InputDecoration(
+                  hintText: 'Type your message...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  // SMS Button
+                  if (buyer?.phone != null)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: isSending ? null : () async {
+                          final message = messageController.text.trim();
+                          Navigator.pop(dialogContext);
+
+                          final encodedMessage = Uri.encodeComponent(message);
+                          final smsUri = Uri.parse('sms:${buyer.phone}?body=$encodedMessage');
+                          if (await canLaunchUrl(smsUri)) {
+                            await launchUrl(smsUri);
+                          }
+                        },
+                        icon: const Icon(Icons.sms_outlined),
+                        label: const Text('SMS'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (buyer?.phone != null) const SizedBox(width: 12),
+                  // In-App Chat Button
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: isSending ? null : () async {
+                        final message = messageController.text.trim();
+                        if (message.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter a message')),
+                          );
+                          return;
+                        }
+
+                        // Get buyer ID from order
+                        final buyerId = order.buyer?.id;
+                        if (buyerId == null) {
+                          Navigator.pop(dialogContext);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Unable to find buyer information'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        setDialogState(() => isSending = true);
+
+                        // Start conversation with buyer
+                        final conversationId = await ref
+                            .read(conversationsProvider.notifier)
+                            .startConversationWithBuyer(
+                              buyerId: buyerId,
+                              initialMessage: message,
+                              subject: 'Order #${order.orderNumber}',
+                            );
+
+                        if (!mounted) return;
+                        Navigator.pop(dialogContext);
+
+                        if (conversationId != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Message sent!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          // Navigate to chat
+                          context.push('/chat/$conversationId');
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Failed to send message'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      icon: isSending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.chat_bubble_outline),
+                      label: Text(isSending ? 'Sending...' : 'In-App Chat'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
