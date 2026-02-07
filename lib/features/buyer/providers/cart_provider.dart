@@ -19,6 +19,8 @@ class CartItem {
   final int? variantId;
   final Map<String, dynamic>? attributes;
   final int stock;
+  final double taxAmount;
+  final String? taxDescription;
 
   CartItem({
     required this.listingId,
@@ -29,6 +31,8 @@ class CartItem {
     this.variantId,
     this.attributes,
     this.stock = 0,
+    this.taxAmount = 0,
+    this.taxDescription,
   });
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
@@ -157,12 +161,15 @@ class CartItem {
     variantId: json['variant_id'],
     attributes: attributes,
     stock: json['stock'] ?? json['available_stock'] ?? 0,
+    taxAmount: json['tax_amount'] is String ? double.tryParse(json['tax_amount']) ?? 0.0 : (json['tax_amount'] ?? 0).toDouble(),
+    taxDescription: json['tax_description'],
   );
 }
 
   String get itemKey => '${listingId}_${variantId ?? 0}';
 
   double get total => price * quantity;
+  double get taxTotal => taxAmount * quantity;
 
   String get formattedPrice => 'UGX ${NumberFormat('#,##0', 'en_US').format(price)}';
   String get formattedTotal => 'UGX ${NumberFormat('#,##0', 'en_US').format(total)}';
@@ -206,7 +213,7 @@ class CartState {
   double get selectedSubtotal =>
       selectedItems.fold(0.0, (sum, item) => sum + item.total);
 
-  double get selectedTax => selectedSubtotal * 0.18;
+  double get selectedTax => selectedItems.fold(0.0, (sum, item) => sum + item.taxTotal);
 
   double get selectedTotal => selectedSubtotal + selectedTax;
 

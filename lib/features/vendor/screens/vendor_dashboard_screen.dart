@@ -21,6 +21,8 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
     with WidgetsBindingObserver {
   bool _isCheckingStatus = false;
 
+  bool _subscriptionLoaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -28,6 +30,9 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
     Future.microtask(() {
       ref.invalidate(vendorDashboardProvider);
       ref.invalidate(vendorRecentOrdersProvider);
+      // Load subscription once here instead of in build method
+      ref.read(subscriptionProvider.notifier).loadCurrentSubscription();
+      _subscriptionLoaded = true;
     });
   }
 
@@ -40,9 +45,9 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Only refresh if this screen is actually visible (not covered by another route)
-      final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? false;
-      if (isCurrentRoute) {
+      // Only refresh if we're actually on the dashboard (not on a pushed route like create listing)
+      final currentLocation = GoRouter.of(context).routeInformationProvider.value.uri.path;
+      if (currentLocation == '/vendor/dashboard') {
         _refreshDashboard();
       }
     }
@@ -51,7 +56,8 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
   Future<void> _refreshDashboard() async {
     ref.invalidate(vendorDashboardProvider);
     ref.invalidate(vendorRecentOrdersProvider);
-    ref.read(authProvider.notifier).refreshUser();
+    // Don't call refreshUser() here - it triggers GoRouter rebuild
+    // which can disrupt navigation when returning from image picker
   }
 
   Future<void> _checkStatus() async {
@@ -518,8 +524,9 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
     final planName = subscriptionState.currentPlanName;
     final badge = subscriptionState.currentBadge;
 
-    // Load subscription data on first build
-    if (subscriptionState.plans.isEmpty && !subscriptionState.isLoading) {
+    // Load subscription if not already loaded (e.g., after provider reset)
+    if (!_subscriptionLoaded && !subscriptionState.isLoading) {
+      _subscriptionLoaded = true;
       Future.microtask(() {
         ref.read(subscriptionProvider.notifier).loadCurrentSubscription();
       });

@@ -642,10 +642,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             ),
             const SizedBox(height: 16),
             _buildSummaryRow('Subtotal', cartState.formattedSelectedSubtotal),
-            const SizedBox(height: 10),
-            _buildSummaryRow('Shipping', cartState.formattedShipping),
-            const SizedBox(height: 10),
-            _buildSummaryRow('Tax (18%)', cartState.formattedSelectedTax),
+            if (cartState.selectedTax > 0) ...[
+              const SizedBox(height: 10),
+              _buildSummaryRow('Import/Tax Charges', cartState.formattedSelectedTax),
+            ],
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Divider(),
@@ -654,6 +654,22 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               'Total',
               cartState.formattedSelectedTotal,
               isBold: true,
+            ),
+            const SizedBox(height: 12),
+            // Safety warning
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(children: [
+                Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber.shade700),
+                const SizedBox(width: 8),
+                Flexible(child: Text('Avoid paying in advance! Even for delivery.',
+                  style: TextStyle(color: Colors.amber.shade800, fontSize: 13, fontWeight: FontWeight.w500))),
+              ]),
             ),
           ],
         ),

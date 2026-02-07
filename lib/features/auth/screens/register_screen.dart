@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/image_crop_utils.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/widgets/custom_widgets.dart';
 import 'otp_verification_screen.dart';
@@ -32,7 +33,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _agreedToTerms = false;
   bool _isGoogleLoading = false;
   File? _profileImage;
-  final _imagePicker = ImagePicker();
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
@@ -40,14 +40,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _pickProfileImage() async {
     try {
-      final image = await _imagePicker.pickImage(
+      final croppedFile = await ImageCropUtils.pickAndCropImage(
         source: ImageSource.gallery,
+        cropStyle: CropStyle.profilePicture,
+        context: context,
         maxWidth: 512,
         maxHeight: 512,
         imageQuality: 85,
       );
-      if (image != null) {
-        setState(() => _profileImage = File(image.path));
+      if (croppedFile != null) {
+        setState(() => _profileImage = croppedFile);
       }
     } catch (e) {
       debugPrint('Error picking image: $e');

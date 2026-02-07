@@ -1,10 +1,10 @@
 // lib/features/vendor/screens/vendor_profile_screen.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/image_crop_utils.dart';
 import '../../../core/constants/app_constants.dart';
 import '../providers/vendor_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -282,7 +282,10 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
             icon: Icons.store_outlined,
             title: 'Store Settings',
             subtitle: 'Manage your store information',
-            onTap: () => _showEditProfileDialog(null),
+            onTap: () {
+              final profile = ref.read(vendorProfileProvider).valueOrNull;
+              _showEditProfileDialog(profile);
+            },
           ),
           _buildDivider(),
           _buildMenuItem(
@@ -470,15 +473,16 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
 
   Future<void> _uploadImage(ImageSource source) async {
     try {
-      final picker = ImagePicker();
-      final image = await picker.pickImage(
+      final croppedFile = await ImageCropUtils.pickAndCropImage(
         source: source,
+        cropStyle: CropStyle.profilePicture,
+        context: context,
         maxWidth: 512,
         maxHeight: 512,
         imageQuality: 85,
       );
 
-      if (image != null) {
+      if (croppedFile != null) {
         // Show loading indicator
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -503,7 +507,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
         }
 
         final success = await ref.read(updateProfileProvider.notifier).updateProfile(
-              logo: File(image.path),
+              logo: croppedFile,
             );
 
         if (mounted) {
@@ -619,6 +623,11 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
                           businessAddress: addressController.text.trim(),
                           businessPhone: phoneController.text.trim(),
                         );
+
+                    if (success) {
+                      // Refresh user data so cached vendor profile is updated
+                      await ref.read(authProvider.notifier).refreshUser();
+                    }
 
                     if (mounted) {
                       Navigator.pop(context);

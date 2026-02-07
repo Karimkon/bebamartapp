@@ -765,6 +765,8 @@ class CreateListingNotifier extends StateNotifier<CreateListingState> {
     required List<File> images,
     double? weight,
     List<Map<String, dynamic>>? variations, // Product variants (color/size)
+    double? taxAmount,
+    String? taxDescription,
   }) async {
     print('🔄 Creating new listing: $title');
     state = state.copyWith(isLoading: true, error: null);
@@ -781,6 +783,8 @@ class CreateListingNotifier extends StateNotifier<CreateListingState> {
         'stock': quantity.toString(),
         'condition': condition,
         if (weight != null) 'weight': weight.toString(),
+        if (taxAmount != null) 'tax_amount': taxAmount.toString(),
+        if (taxDescription != null && taxDescription.isNotEmpty) 'tax_description': taxDescription,
       });
 
       // Add images
@@ -869,6 +873,8 @@ class CreateListingNotifier extends StateNotifier<CreateListingState> {
     required String condition,
     List<File>? newImages,
     List<int>? deleteImageIds,
+    double? taxAmount,
+    String? taxDescription,
   }) async {
     print('🔄 Updating listing $listingId');
     state = state.copyWith(isLoading: true, error: null);
@@ -885,6 +891,8 @@ class CreateListingNotifier extends StateNotifier<CreateListingState> {
         'quantity': quantity.toString(),
         'condition': condition,
         '_method': 'PUT', // Laravel method spoofing for PUT with multipart
+        if (taxAmount != null) 'tax_amount': taxAmount.toString(),
+        if (taxDescription != null) 'tax_description': taxDescription,
       });
 
       // Add new images if any

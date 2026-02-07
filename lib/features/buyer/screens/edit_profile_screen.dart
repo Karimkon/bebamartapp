@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/image_crop_utils.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -22,7 +23,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _phoneController = TextEditingController();
   bool _isLoading = false;
   File? _selectedImage;
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -111,16 +111,18 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(
+      final croppedFile = await ImageCropUtils.pickAndCropImage(
         source: source,
+        cropStyle: CropStyle.profilePicture,
+        context: context,
         maxWidth: 800,
         maxHeight: 800,
         imageQuality: 85,
       );
 
-      if (pickedFile != null) {
+      if (croppedFile != null) {
         setState(() {
-          _selectedImage = File(pickedFile.path);
+          _selectedImage = croppedFile;
         });
       }
     } catch (e) {

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/image_crop_utils.dart';
 import '../providers/vendor_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -112,7 +113,6 @@ class _CreateServiceScreenState extends ConsumerState<CreateServiceScreen> {
   }
 
   Future<void> _pickImages() async {
-    print('📷 CreateServiceScreen: Opening image picker...');
     try {
       final ImagePicker picker = ImagePicker();
       final List<XFile> images = await picker.pickMultiImage(
@@ -121,21 +121,28 @@ class _CreateServiceScreenState extends ConsumerState<CreateServiceScreen> {
         imageQuality: 85,
       );
 
-      print('📷 CreateServiceScreen: Image picker returned, mounted=$mounted, images=${images.length}');
-
-      if (!mounted) {
-        print('⚠️ CreateServiceScreen: Widget disposed after image pick');
-        return;
-      }
+      if (!mounted) return;
 
       if (images.isNotEmpty) {
-        setState(() {
-          _selectedImages.addAll(images.map((xFile) => File(xFile.path)));
-        });
-        print('✅ CreateServiceScreen: Added ${images.length} images, total=${_selectedImages.length}');
+        final List<File> croppedFiles = [];
+        for (final xFile in images) {
+          if (!mounted) break;
+          final cropped = await ImageCropUtils.cropImage(
+            File(xFile.path),
+            CropStyle.freeForm,
+            context,
+          );
+          if (cropped != null) {
+            croppedFiles.add(cropped);
+          }
+        }
+        if (croppedFiles.isNotEmpty && mounted) {
+          setState(() {
+            _selectedImages.addAll(croppedFiles);
+          });
+        }
       }
     } catch (e) {
-      print('❌ CreateServiceScreen: Image picker error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to pick images: $e')),
@@ -145,31 +152,24 @@ class _CreateServiceScreenState extends ConsumerState<CreateServiceScreen> {
   }
 
   Future<void> _takePicture() async {
-    print('📸 CreateServiceScreen: Opening camera...');
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
+      final croppedFile = await ImageCropUtils.pickAndCropImage(
         source: ImageSource.camera,
+        cropStyle: CropStyle.freeForm,
+        context: context,
         maxWidth: 1024,
         maxHeight: 1024,
         imageQuality: 85,
       );
 
-      print('📸 CreateServiceScreen: Camera returned, mounted=$mounted, image=${image != null}');
+      if (!mounted) return;
 
-      if (!mounted) {
-        print('⚠️ CreateServiceScreen: Widget disposed after camera');
-        return;
-      }
-
-      if (image != null) {
+      if (croppedFile != null) {
         setState(() {
-          _selectedImages.add(File(image.path));
+          _selectedImages.add(croppedFile);
         });
-        print('✅ CreateServiceScreen: Added camera image, total=${_selectedImages.length}');
       }
     } catch (e) {
-      print('❌ CreateServiceScreen: Camera error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to take picture: $e')),

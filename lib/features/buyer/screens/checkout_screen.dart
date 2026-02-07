@@ -1066,24 +1066,37 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               Text(cartState.formattedSelectedSubtotal, style: const TextStyle(fontWeight: FontWeight.w500)),
             ],
           ),
-          const SizedBox(height: 8),
 
-          // Shipping
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Shipping', style: TextStyle(color: AppColors.textSecondary)),
-              Text(
-                cartState.shipping > 0 ? cartState.formattedShipping : 'Free',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: cartState.shipping > 0 ? AppColors.textPrimary : AppColors.success,
-                ),
-              ),
-            ],
-          ),
+          // Import/Tax Charges (only when > 0)
+          if (cartState.selectedTax > 0) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Import/Tax Charges', style: TextStyle(color: AppColors.textSecondary)),
+                Text(cartState.formattedSelectedTax, style: const TextStyle(fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ],
 
           const Divider(height: 24),
+
+          // Safety warning
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(children: [
+              Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber.shade700),
+              const SizedBox(width: 8),
+              Flexible(child: Text('Avoid paying in advance! Even for delivery.',
+                style: TextStyle(color: Colors.amber.shade800, fontSize: 13, fontWeight: FontWeight.w500))),
+            ]),
+          ),
 
           // Total
           Row(

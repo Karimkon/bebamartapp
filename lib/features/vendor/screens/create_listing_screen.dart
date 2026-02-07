@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/image_crop_utils.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../providers/vendor_provider.dart';
 import '../../../shared/models/category_model.dart';
 
@@ -53,6 +56,8 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   final _priceController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
   final _weightController = TextEditingController();
+  final _taxAmountController = TextEditingController();
+  final _taxDescriptionController = TextEditingController();
   final _colorController = TextEditingController();
   final _sizeController = TextEditingController();
 
@@ -60,6 +65,7 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   String _condition = 'new';
   List<File> _selectedImages = [];
   List<String> _existingImageUrls = [];
+  List<int> _existingImageIds = []; // Tracks actual image IDs from API
   List<int> _deleteImageIds = [];
   bool _isLoading = false;
 
@@ -74,8 +80,8 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(createListingProvider.notifier).loadCategories();
+    Future.microtask(() async {
+      await ref.read(createListingProvider.notifier).loadCategories();
       if (isEditing) {
         _loadExistingListing();
       }
@@ -89,6 +95,8 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
     _priceController.dispose();
     _quantityController.dispose();
     _weightController.dispose();
+    _taxAmountController.dispose();
+    _taxDescriptionController.dispose();
     _colorController.dispose();
     _sizeController.dispose();
     super.dispose();
@@ -171,7 +179,65 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   }
 
   Future<void> _loadExistingListing() async {
-    // TODO: Load existing listing data for editing
+    setState(() => _isLoading = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.get('/api/vendor/listings/${widget.listingId}');
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final listing = response.data['listing'] as Map<String, dynamic>;
+
+        setState(() {
+          _titleController.text = listing['title'] ?? '';
+          _descriptionController.text = listing['description'] ?? '';
+          _priceController.text = (listing['price'] ?? '').toString().replaceAll(RegExp(r'\.0+$'), '');
+          _quantityController.text = (listing['stock'] ?? 1).toString();
+          _weightController.text = listing['weight_kg'] != null ? listing['weight_kg'].toString() : '';
+          _taxAmountController.text = (listing['tax_amount'] != null && listing['tax_amount'] != 0) ? listing['tax_amount'].toString().replaceAll(RegExp(r'\.0+$'), '') : '';
+          _taxDescriptionController.text = listing['tax_description'] ?? '';
+          _condition = listing['condition'] ?? 'new';
+
+          // Load existing images
+          if (listing['images'] != null) {
+            final images = listing['images'] as List;
+            _existingImageUrls = images.map<String>((img) {
+              final path = img['path'] ?? '';
+              return '${AppConstants.storageUrl}/$path';
+            }).toList();
+            // Store image IDs for deletion tracking
+            _existingImageIds = images.map<int>((img) => img['id'] as int).toList();
+          }
+
+          // Set selected category from the loaded listing (search 3 levels deep)
+          if (listing['category'] != null) {
+            final catData = listing['category'] as Map<String, dynamic>;
+            final catId = catData['id'] as int;
+            final categories = ref.read(createListingProvider).categories;
+            for (final parent in categories) {
+              if (parent.id == catId) { _selectedCategory = parent; break; }
+              for (final child in parent.children) {
+                if (child.id == catId) { _selectedCategory = child; break; }
+                for (final grandchild in child.children) {
+                  if (grandchild.id == catId) { _selectedCategory = grandchild; break; }
+                }
+                if (_selectedCategory != null) break;
+              }
+              if (_selectedCategory != null) break;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load product: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _pickImages() async {
@@ -184,36 +250,55 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
       );
 
       if (images.isNotEmpty) {
-        setState(() {
-          _selectedImages.addAll(images.map((xFile) => File(xFile.path)));
-        });
+        final List<File> croppedFiles = [];
+        for (final xFile in images) {
+          if (!mounted) break;
+          final cropped = await ImageCropUtils.cropImage(
+            File(xFile.path),
+            CropStyle.freeForm,
+            context,
+          );
+          if (cropped != null) {
+            croppedFiles.add(cropped);
+          }
+        }
+        if (croppedFiles.isNotEmpty && mounted) {
+          setState(() {
+            _selectedImages.addAll(croppedFiles);
+          });
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick images: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick images: $e')),
+        );
+      }
     }
   }
 
   Future<void> _takePicture() async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
+      final croppedFile = await ImageCropUtils.pickAndCropImage(
         source: ImageSource.camera,
+        cropStyle: CropStyle.freeForm,
+        context: context,
         maxWidth: 1024,
         maxHeight: 1024,
         imageQuality: 85,
       );
 
-      if (image != null) {
+      if (croppedFile != null && mounted) {
         setState(() {
-          _selectedImages.add(File(image.path));
+          _selectedImages.add(croppedFile);
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to take picture: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to take picture: $e')),
+        );
+      }
     }
   }
 
@@ -223,10 +308,12 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
     });
   }
 
-  void _removeExistingImage(int index, int imageId) {
+  void _removeExistingImage(int index) {
     setState(() {
       _existingImageUrls.removeAt(index);
-      _deleteImageIds.add(imageId);
+      if (index < _existingImageIds.length) {
+        _deleteImageIds.add(_existingImageIds.removeAt(index));
+      }
     });
   }
 
@@ -264,6 +351,12 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
           condition: _condition,
           newImages: _selectedImages.isNotEmpty ? _selectedImages : null,
           deleteImageIds: _deleteImageIds.isNotEmpty ? _deleteImageIds : null,
+          taxAmount: _taxAmountController.text.trim().isNotEmpty
+              ? double.tryParse(_taxAmountController.text.trim())
+              : 0,
+          taxDescription: _taxDescriptionController.text.trim().isNotEmpty
+              ? _taxDescriptionController.text.trim()
+              : null,
         );
       } else {
         // Prepare variants if enabled
@@ -284,6 +377,12 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
               ? double.tryParse(_weightController.text.trim())
               : null,
           variations: variationsData,
+          taxAmount: _taxAmountController.text.trim().isNotEmpty
+              ? double.tryParse(_taxAmountController.text.trim())
+              : 0,
+          taxDescription: _taxDescriptionController.text.trim().isNotEmpty
+              ? _taxDescriptionController.text.trim()
+              : null,
         );
       }
 
@@ -428,6 +527,29 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
               ),
               const SizedBox(height: 24),
 
+              // Tax / Import Charges Section
+              _buildSectionTitle('Import / Tax Charges'),
+              const SizedBox(height: 4),
+              Text(
+                'If this product has import duties or tax charges, specify them here.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              _buildTextField(
+                controller: _taxAmountController,
+                label: 'Tax / Import Charge per unit (UGX)',
+                hint: '0',
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              ),
+              const SizedBox(height: 12),
+              _buildTextField(
+                controller: _taxDescriptionController,
+                label: 'Tax Description',
+                hint: 'e.g., Import duty & customs clearance',
+              ),
+              const SizedBox(height: 24),
+
               // Condition Section
               _buildSectionTitle('Condition'),
               const SizedBox(height: 12),
@@ -530,7 +652,7 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
               ..._existingImageUrls.asMap().entries.map((entry) {
                 return _buildImageTile(
                   imageUrl: entry.value,
-                  onRemove: () => _removeExistingImage(entry.key, 0),
+                  onRemove: () => _removeExistingImage(entry.key),
                   isFirst: entry.key == 0 && _selectedImages.isEmpty,
                 );
               }),
@@ -739,6 +861,9 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   }
 
   void _showCategoryPicker(List<CategoryModel> parentCategories) {
+    // Filter to only categories with children
+    final filteredCategories = parentCategories.where((c) => c.children.isNotEmpty).toList();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -746,9 +871,9 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
+        initialChildSize: 0.8,
         minChildSize: 0.5,
-        maxChildSize: 0.9,
+        maxChildSize: 0.95,
         expand: false,
         builder: (context, scrollController) => Column(
           children: [
@@ -781,13 +906,17 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
             ),
             const Divider(height: 1),
             // Category list
+            if (filteredCategories.isEmpty)
+              const Expanded(
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
-                itemCount: parentCategories.length,
+                itemCount: filteredCategories.length,
                 itemBuilder: (context, index) {
-                  final parent = parentCategories[index];
-                  if (parent.children.isEmpty) return const SizedBox.shrink();
+                  final parent = filteredCategories[index];
 
                   return ExpansionTile(
                     leading: Icon(parent.iconData, color: AppColors.primary),
@@ -800,6 +929,51 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     ),
                     children: parent.children.map((child) {
+                      // If this subcategory has its own children (3rd level), show as expandable
+                      if (child.children.isNotEmpty) {
+                        return ExpansionTile(
+                          leading: Icon(
+                            child.iconData,
+                            color: AppColors.textSecondary,
+                            size: 20,
+                          ),
+                          title: Text(
+                            child.name,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          subtitle: Text(
+                            '${child.children.length} subcategories',
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                          ),
+                          children: child.children.map((grandchild) {
+                            final isSelected = _selectedCategory?.id == grandchild.id;
+                            return ListTile(
+                              contentPadding: const EdgeInsets.only(left: 40),
+                              leading: Icon(
+                                grandchild.iconData,
+                                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                                size: 18,
+                              ),
+                              title: Text(
+                                grandchild.name,
+                                style: TextStyle(
+                                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              trailing: isSelected
+                                  ? Icon(Icons.check_circle, color: AppColors.primary, size: 20)
+                                  : null,
+                              onTap: () {
+                                setState(() => _selectedCategory = grandchild);
+                                Navigator.pop(context);
+                              },
+                            );
+                          }).toList(),
+                        );
+                      }
+                      // Leaf subcategory (no children) - show as selectable ListTile
                       final isSelected = _selectedCategory?.id == child.id;
                       return ListTile(
                         leading: Icon(

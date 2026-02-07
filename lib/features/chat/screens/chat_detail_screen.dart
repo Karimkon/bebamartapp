@@ -118,6 +118,22 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       body: Column(
         children: [
           Expanded(child: _buildMessageList(state)),
+          // Safety warning banner
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(children: [
+              Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber.shade700),
+              const SizedBox(width: 8),
+              Flexible(child: Text('Avoid paying in advance! Even for delivery.',
+                style: TextStyle(color: Colors.amber.shade800, fontSize: 13, fontWeight: FontWeight.w500))),
+            ]),
+          ),
           _buildInputArea(state),
         ],
       ),
