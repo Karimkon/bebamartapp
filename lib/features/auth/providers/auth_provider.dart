@@ -508,6 +508,66 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Apple Sign-In
+  Future<bool> signInWithApple({
+    required String email,
+    required String name,
+    required String appleUserId,
+    String? identityToken,
+    String? authorizationCode,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      print('🍎 Apple Sign-In for: $email');
+      final response = await _api.post(ApiEndpoints.appleAuth, data: {
+        'email': email,
+        'name': name,
+        'apple_user_id': appleUserId,
+        'identity_token': identityToken,
+        'authorization_code': authorizationCode,
+      });
+
+      print('📦 Apple auth response: ${response.statusCode}');
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final data = response.data;
+        final token = data['token'];
+
+        if (token != null) {
+          await _storage.saveToken(token);
+
+          final userData = data['user'] as Map<String, dynamic>;
+          final user = UserModel.fromJson(userData);
+
+          await _storage.saveUser(userData);
+          await _storage.saveUserRole(user.role);
+
+          state = state.copyWith(
+            status: AuthStatus.authenticated,
+            user: user,
+            isLoading: false,
+          );
+
+          print('✅ Apple Sign-In successful');
+          _loadWishlistAfterAuth();
+          return true;
+        }
+      }
+
+      state = state.copyWith(isLoading: false, error: 'Apple sign-in failed');
+      return false;
+
+    } on DioException catch (e) {
+      print('❌ DioException during Apple sign-in: ${e.message}');
+      state = state.copyWith(isLoading: false, error: 'Apple sign-in failed');
+      return false;
+    } catch (e) {
+      print('❌ Unexpected error during Apple sign-in: $e');
+      state = state.copyWith(isLoading: false, error: 'Unexpected error');
+      return false;
+    }
+  }
+
   /// Google Sign-In
   Future<bool> signInWithGoogle({
     required String email,

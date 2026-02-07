@@ -94,6 +94,7 @@ class ApiEndpoints {
   static const String verifyOtp = '/api/verify-otp';
   static const String resendOtp = '/api/resend-otp';
   static const String googleAuth = '/api/auth/google';
+  static const String appleAuth = '/api/auth/apple';
 
   // User
   static const String user = '/api/user';

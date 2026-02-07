@@ -283,19 +283,24 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
     String? initialMessage,
   }) async {
     try {
+      print('🔄 Starting conversation with vendor profile ID: $vendorProfileId');
       final response = await _api.post('/api/chat/conversations', data: {
         'vendor_profile_id': vendorProfileId,
         if (listingId != null) 'listing_id': listingId,
         if (initialMessage != null) 'initial_message': initialMessage,
       });
 
+      print('📦 Response: ${response.statusCode} - ${response.data}');
+
       if (response.statusCode == 200 && response.data['success'] == true) {
         // Reload conversations
         await loadConversations();
         return response.data['conversation_id'] as int?;
+      } else {
+        print('❌ Failed: ${response.data['message']}');
       }
     } catch (e) {
-      // Handle error
+      print('❌ Error starting conversation: $e');
     }
     return null;
   }
@@ -307,19 +312,24 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
     String? subject,
   }) async {
     try {
+      print('🔄 Starting conversation with buyer ID: $buyerId');
       final response = await _api.post('/api/chat/conversations/with-buyer', data: {
         'buyer_id': buyerId,
         if (initialMessage != null) 'initial_message': initialMessage,
         if (subject != null) 'subject': subject,
       });
 
+      print('📦 Response: ${response.statusCode} - ${response.data}');
+
       if (response.statusCode == 200 && response.data['success'] == true) {
         // Reload conversations
         await loadConversations();
         return response.data['conversation_id'] as int?;
+      } else {
+        print('❌ Failed: ${response.data['message']}');
       }
     } catch (e) {
-      // Handle error
+      print('❌ Error starting conversation: $e');
     }
     return null;
   }

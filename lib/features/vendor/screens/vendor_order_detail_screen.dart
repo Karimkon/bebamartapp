@@ -200,22 +200,26 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Order #${order.orderNumber}',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat('MMMM dd, yyyy • hh:mm a').format(order.createdAt),
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Order #${_truncateOrderNumber(order.orderNumber)}',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      DateFormat('MMMM dd, yyyy • hh:mm a').format(order.createdAt),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               _buildStatusBadge(order.status),
             ],
           ),
@@ -446,16 +450,22 @@ class _VendorOrderDetailScreenState extends ConsumerState<VendorOrderDetailScree
                       }
                     }
                   },
-                  icon: const Icon(Icons.phone_outlined),
-                  label: const Text('Call'),
+                  icon: const Icon(Icons.phone_outlined, size: 18),
+                  label: const Text('Call', overflow: TextOverflow.ellipsis),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _openMessageDialog(order, buyer),
-                  icon: const Icon(Icons.chat_outlined),
-                  label: const Text('Message'),
+                  icon: const Icon(Icons.chat_outlined, size: 18),
+                  label: const Text('Message', overflow: TextOverflow.ellipsis),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
                 ),
               ),
             ],
@@ -909,9 +919,9 @@ Total: UGX ${order.total.toStringAsFixed(0)}
                           return;
                         }
 
-                        // Get buyer ID from order
-                        final buyerId = order.buyer?.id;
-                        if (buyerId == null) {
+                        // Get buyer ID from order - use buyerId field directly
+                        final buyerId = order.buyerId;
+                        if (buyerId == 0) {
                           Navigator.pop(dialogContext);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -930,7 +940,7 @@ Total: UGX ${order.total.toStringAsFixed(0)}
                             .startConversationWithBuyer(
                               buyerId: buyerId,
                               initialMessage: message,
-                              subject: 'Order #${order.orderNumber}',
+                              subject: 'Order #${_truncateOrderNumber(order.orderNumber)}',
                             );
 
                         if (!mounted) return;
@@ -989,6 +999,13 @@ Total: UGX ${order.total.toStringAsFixed(0)}
     final baseUrl = AppConstants.baseUrl.replaceAll('/api', '');
     if (imagePath.startsWith('/')) return '$baseUrl$imagePath';
     return '$baseUrl/storage/$imagePath';
+  }
+
+  String _truncateOrderNumber(String orderNumber) {
+    if (orderNumber.length > 16) {
+      return '${orderNumber.substring(0, 6)}...${orderNumber.substring(orderNumber.length - 6)}';
+    }
+    return orderNumber;
   }
 }
 

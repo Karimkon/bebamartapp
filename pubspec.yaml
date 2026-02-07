@@ -1,7 +1,7 @@
 name: bebamart
 description: BebaMart - Your Trusted Marketplace.
 publish_to: 'none'
-version: 2.0.1+11
+version: 2.0.1+12
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -64,6 +64,8 @@ dependencies:
 
   # Authentication
   google_sign_in: ^6.2.1
+  sign_in_with_apple: ^6.1.4
+  crypto: ^3.0.6
 
   # Connectivity
   connectivity_plus: ^5.0.2

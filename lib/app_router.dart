@@ -48,6 +48,7 @@ import 'features/vendor/screens/vendor_wallet_screen.dart';
 import 'features/vendor/screens/vendor_notifications_screen.dart';
 import 'features/vendor/screens/vendor_analytics_screen.dart';
 import 'features/vendor/screens/create_service_screen.dart';
+import 'features/vendor/screens/subscription_screen.dart';
 
 // Chat
 import 'features/chat/screens/chat_list_screen.dart';
@@ -439,6 +440,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/vendor/services/create',
         builder: (context, state) => const CreateServiceScreen(),
+      ),
+      GoRoute(
+        path: '/vendor/subscription',
+        builder: (context, state) => const SubscriptionScreen(),
       ),
 
       // ==================== CHAT ROUTES ====================

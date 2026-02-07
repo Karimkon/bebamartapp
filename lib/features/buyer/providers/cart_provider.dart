@@ -160,6 +160,8 @@ class CartItem {
   );
 }
 
+  String get itemKey => '${listingId}_${variantId ?? 0}';
+
   double get total => price * quantity;
 
   String get formattedPrice => 'UGX ${NumberFormat('#,##0', 'en_US').format(price)}';
@@ -177,6 +179,7 @@ class CartState {
   final double shipping;
   final double tax;
   final double total;
+  final Set<String> selectedItemKeys;
 
   const CartState({
     this.items = const [],
@@ -186,11 +189,38 @@ class CartState {
     this.shipping = 0,
     this.tax = 0,
     this.total = 0,
+    this.selectedItemKeys = const {},
   });
 
   int get itemCount => items.fold(0, (sum, item) => sum + item.quantity);
   bool get isEmpty => items.isEmpty;
   bool get isNotEmpty => items.isNotEmpty;
+
+  // Selection getters
+  List<CartItem> get selectedItems =>
+      items.where((item) => selectedItemKeys.contains(item.itemKey)).toList();
+
+  int get selectedItemCount =>
+      selectedItems.fold(0, (sum, item) => sum + item.quantity);
+
+  double get selectedSubtotal =>
+      selectedItems.fold(0.0, (sum, item) => sum + item.total);
+
+  double get selectedTax => selectedSubtotal * 0.18;
+
+  double get selectedTotal => selectedSubtotal + selectedTax;
+
+  bool get allSelected =>
+      items.isNotEmpty && selectedItemKeys.length == items.length;
+
+  bool get hasSelection => selectedItemKeys.isNotEmpty;
+
+  String get formattedSelectedSubtotal =>
+      'UGX ${NumberFormat('#,##0', 'en_US').format(selectedSubtotal)}';
+  String get formattedSelectedTax =>
+      'UGX ${NumberFormat('#,##0', 'en_US').format(selectedTax)}';
+  String get formattedSelectedTotal =>
+      'UGX ${NumberFormat('#,##0', 'en_US').format(selectedTotal)}';
 
   String get formattedSubtotal => 'UGX ${NumberFormat('#,##0', 'en_US').format(subtotal)}';
   String get formattedShipping => 'UGX ${NumberFormat('#,##0', 'en_US').format(shipping)}';
@@ -205,6 +235,7 @@ class CartState {
     double? shipping,
     double? tax,
     double? total,
+    Set<String>? selectedItemKeys,
   }) {
     return CartState(
       items: items ?? this.items,
@@ -214,6 +245,7 @@ class CartState {
       shipping: shipping ?? this.shipping,
       tax: tax ?? this.tax,
       total: total ?? this.total,
+      selectedItemKeys: selectedItemKeys ?? this.selectedItemKeys,
     );
   }
 }
@@ -279,6 +311,8 @@ for (var i = 0; i < itemsList.length; i++) {
 }
           
           final items = itemsList.map((item) => CartItem.fromJson(item)).toList();
+          // Auto-select all items when cart loads
+          final allKeys = items.map((item) => item.itemKey).toSet();
           state = state.copyWith(
             items: items,
             subtotal: (cartData['subtotal'] ?? 0).toDouble(),
@@ -286,6 +320,7 @@ for (var i = 0; i < itemsList.length; i++) {
             tax: (cartData['tax'] ?? 0).toDouble(),
             total: (cartData['total'] ?? 0).toDouble(),
             isLoading: false,
+            selectedItemKeys: allKeys,
           );
           print('✅ Cart loaded: ${items.length} items');
         } else {
@@ -395,7 +430,7 @@ Future<bool> addToCart(int listingId, int quantity, {
 
   Future<bool> clearCart() async {
     print('🛒 Clearing cart...');
-    
+
     try {
       final response = await _api.post(ApiEndpoints.cartClear);
 
@@ -408,6 +443,26 @@ Future<bool> addToCart(int listingId, int quantity, {
       print('❌ Clear cart error: $e');
       rethrow;
     }
+  }
+
+  // Selection methods
+  void toggleItemSelection(String key) {
+    final newKeys = Set<String>.from(state.selectedItemKeys);
+    if (newKeys.contains(key)) {
+      newKeys.remove(key);
+    } else {
+      newKeys.add(key);
+    }
+    state = state.copyWith(selectedItemKeys: newKeys);
+  }
+
+  void selectAll() {
+    final allKeys = state.items.map((item) => item.itemKey).toSet();
+    state = state.copyWith(selectedItemKeys: allKeys);
+  }
+
+  void deselectAll() {
+    state = state.copyWith(selectedItemKeys: <String>{});
   }
 }
 

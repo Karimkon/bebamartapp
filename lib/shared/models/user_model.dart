@@ -168,6 +168,12 @@ class VendorProfileModel {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  // Subscription fields
+  final String subscriptionPlanName;
+  final String? subscriptionBadgeText;
+  final bool hasPaidSubscription;
+  final double boostMultiplier;
+
   VendorProfileModel({
     required this.id,
     required this.userId,
@@ -188,9 +194,18 @@ class VendorProfileModel {
     this.meta,
     this.createdAt,
     this.updatedAt,
+    this.subscriptionPlanName = 'Free',
+    this.subscriptionBadgeText,
+    this.hasPaidSubscription = false,
+    this.boostMultiplier = 1.0,
   });
   
   factory VendorProfileModel.fromJson(Map<String, dynamic> json) {
+    // Parse subscription data from nested object or direct fields
+    final subscription = json['subscription'] is Map<String, dynamic>
+        ? json['subscription'] as Map<String, dynamic>
+        : <String, dynamic>{};
+
     return VendorProfileModel(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       userId: json['user_id'] is int ? json['user_id'] : int.tryParse(json['user_id']?.toString() ?? '0') ?? 0,
@@ -215,6 +230,13 @@ class VendorProfileModel {
       updatedAt: json['updated_at'] != null
           ? DateTime.tryParse(json['updated_at'].toString())
           : null,
+      // Subscription fields
+      subscriptionPlanName: subscription['plan_name']?.toString() ?? 'Free',
+      subscriptionBadgeText: subscription['badge_text']?.toString(),
+      hasPaidSubscription: subscription['has_paid_subscription'] == true,
+      boostMultiplier: subscription['boost_multiplier'] is num
+          ? subscription['boost_multiplier'].toDouble()
+          : 1.0,
     );
   }
   
@@ -239,8 +261,19 @@ class VendorProfileModel {
       'meta': meta,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
+      'subscription': {
+        'plan_name': subscriptionPlanName,
+        'badge_text': subscriptionBadgeText,
+        'has_paid_subscription': hasPaidSubscription,
+        'boost_multiplier': boostMultiplier,
+      },
     };
   }
+
+  // Subscription helper getters
+  bool get hasSubscriptionBadge => subscriptionBadgeText != null && subscriptionBadgeText!.isNotEmpty;
+  bool get isFreeUser => !hasPaidSubscription;
+  bool get isPremiumVendor => hasPaidSubscription;
 
   bool get isApproved => vettingStatus == 'approved';
   bool get isPending => vettingStatus == 'pending';

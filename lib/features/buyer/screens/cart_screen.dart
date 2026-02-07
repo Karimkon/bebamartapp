@@ -51,12 +51,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             else if (cartState.isEmpty)
               SliverFillRemaining(child: _buildEmptyCart())
             else ...[
+              // Select All Row
+              SliverToBoxAdapter(
+                child: _buildSelectAllRow(cartState),
+              ),
+
               // Cart Items
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildCartItem(cartState.items[index]),
+                    (context, index) => _buildCartItem(cartState.items[index], cartState),
                     childCount: cartState.items.length,
                   ),
                 ),
@@ -160,7 +165,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
               if (cartState.isNotEmpty) ...[
                 const SizedBox(height: 20),
-                // Stats Row
+                // Stats Row - shows selected counts
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -171,9 +176,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildHeaderStat(
-                        icon: Icons.shopping_bag_outlined,
-                        value: '${cartState.itemCount}',
-                        label: 'Items',
+                        icon: Icons.check_circle_outline,
+                        value: '${cartState.selectedItemCount}',
+                        label: 'Selected',
                       ),
                       Container(
                         width: 1,
@@ -182,7 +187,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       ),
                       _buildHeaderStat(
                         icon: Icons.inventory_2_outlined,
-                        value: '${cartState.items.length}',
+                        value: '${cartState.selectedItems.length}/${cartState.items.length}',
                         label: 'Products',
                       ),
                       Container(
@@ -192,7 +197,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       ),
                       _buildHeaderStat(
                         icon: Icons.payments_outlined,
-                        value: cartState.formattedSubtotal,
+                        value: cartState.formattedSelectedSubtotal,
                         label: 'Subtotal',
                       ),
                     ],
@@ -238,6 +243,66 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSelectAllRow(CartState cartState) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: cartState.allSelected,
+                tristate: !cartState.allSelected && cartState.hasSelection,
+                onChanged: (value) {
+                  if (cartState.allSelected) {
+                    ref.read(cartProvider.notifier).deselectAll();
+                  } else {
+                    ref.read(cartProvider.notifier).selectAll();
+                  }
+                },
+                activeColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              cartState.allSelected ? 'Deselect All' : 'Select All',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${cartState.selectedItems.length} of ${cartState.items.length} selected',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -300,12 +365,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
-  Widget _buildCartItem(CartItem item) {
+  Widget _buildCartItem(CartItem item, CartState cartState) {
+    final isSelected = cartState.selectedItemKeys.contains(item.itemKey);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: isSelected
+            ? Border.all(color: AppColors.primary.withOpacity(0.3), width: 1.5)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -318,79 +388,104 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            // Top Row: Image, Title, Delete
+            // Top Row: Checkbox, Image, Title, Delete
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Product Image
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: AppColors.border.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(12),
+                // Checkbox
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, right: 8),
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Checkbox(
+                      value: isSelected,
+                      onChanged: (value) {
+                        ref.read(cartProvider.notifier).toggleItemSelection(item.itemKey);
+                      },
+                      activeColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
                   ),
-                  child: item.thumbnail != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            item.thumbnail!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.image_outlined,
-                              color: AppColors.textSecondary.withOpacity(0.5),
-                              size: 30,
+                ),
+
+                // Product Image (tappable)
+                GestureDetector(
+                  onTap: () => context.push('/product/${item.listingId}'),
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: AppColors.border.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: item.thumbnail != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              item.thumbnail!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.image_outlined,
+                                color: AppColors.textSecondary.withOpacity(0.5),
+                                size: 30,
+                              ),
                             ),
+                          )
+                        : Icon(
+                            Icons.image_outlined,
+                            color: AppColors.textSecondary.withOpacity(0.5),
+                            size: 30,
                           ),
-                        )
-                      : Icon(
-                          Icons.image_outlined,
-                          color: AppColors.textSecondary.withOpacity(0.5),
-                          size: 30,
-                        ),
+                  ),
                 ),
                 const SizedBox(width: 12),
 
-                // Title & Attributes
+                // Title & Attributes (tappable)
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: AppColors.textPrimary,
+                  child: GestureDetector(
+                    onTap: () => context.push('/product/${item.listingId}'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (item.attributes != null && item.attributes!.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 4,
-                          runSpacing: 4,
-                          children: item.attributes!.entries.take(2).map((e) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                '${e.key}: ${e.value}',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w500,
+                        if (item.attributes != null && item.attributes!.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: item.attributes!.entries.take(2).map((e) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
+                                child: Text(
+                                  '${e.key}: ${e.value}',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
 
@@ -534,21 +629,30 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                const Spacer(),
+                if (!cartState.allSelected)
+                  Text(
+                    '${cartState.selectedItems.length} items',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 16),
-            _buildSummaryRow('Subtotal', cartState.formattedSubtotal),
+            _buildSummaryRow('Subtotal', cartState.formattedSelectedSubtotal),
             const SizedBox(height: 10),
             _buildSummaryRow('Shipping', cartState.formattedShipping),
             const SizedBox(height: 10),
-            _buildSummaryRow('Tax (18%)', cartState.formattedTax),
+            _buildSummaryRow('Tax (18%)', cartState.formattedSelectedTax),
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Divider(),
             ),
             _buildSummaryRow(
               'Total',
-              cartState.formattedTotal,
+              cartState.formattedSelectedTotal,
               isBold: true,
             ),
           ],
@@ -582,6 +686,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 
   Widget _buildCheckoutBar(CartState cartState) {
+    final hasSelection = cartState.hasSelection;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -603,18 +709,18 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Total',
+                    hasSelection ? 'Total (${cartState.selectedItems.length} items)' : 'No items selected',
                     style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
                   ),
                   Text(
-                    cartState.formattedTotal,
+                    hasSelection ? cartState.formattedSelectedTotal : 'UGX 0',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
+                      color: hasSelection ? AppColors.primary : AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -623,10 +729,12 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             const SizedBox(width: 16),
             Expanded(
               child: ElevatedButton(
-                onPressed: () => context.push('/checkout'),
+                onPressed: hasSelection ? () => context.push('/checkout') : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: AppColors.primary.withOpacity(0.3),
+                  disabledForegroundColor: Colors.white.withOpacity(0.5),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),

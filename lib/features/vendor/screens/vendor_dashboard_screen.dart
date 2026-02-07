@@ -8,6 +8,7 @@ import '../../../core/constants/app_constants.dart';
 import '../providers/vendor_provider.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../providers/subscription_provider.dart';
 
 class VendorDashboardScreen extends ConsumerStatefulWidget {
   const VendorDashboardScreen({super.key});
@@ -126,6 +127,10 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
 
                         // Revenue Card
                         _buildRevenueCard(stats),
+                        const SizedBox(height: 20),
+
+                        // Subscription Card
+                        _buildSubscriptionCard(),
                         const SizedBox(height: 20),
 
                         // Quick Actions
@@ -506,6 +511,193 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
     );
   }
 
+  Widget _buildSubscriptionCard() {
+    final subscriptionState = ref.watch(subscriptionProvider);
+    final currentSub = subscriptionState.currentSubscription;
+    final hasActiveSub = subscriptionState.hasActiveSubscription;
+    final planName = subscriptionState.currentPlanName;
+    final badge = subscriptionState.currentBadge;
+
+    // Load subscription data on first build
+    if (subscriptionState.plans.isEmpty && !subscriptionState.isLoading) {
+      Future.microtask(() {
+        ref.read(subscriptionProvider.notifier).loadCurrentSubscription();
+      });
+    }
+
+    return GestureDetector(
+      onTap: () => context.push('/vendor/subscription'),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: hasActiveSub && planName != 'Free'
+                ? [Colors.amber[600]!, Colors.orange[700]!]
+                : [Colors.grey[600]!, Colors.grey[800]!],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: (hasActiveSub && planName != 'Free' ? Colors.amber : Colors.grey).withOpacity(0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      hasActiveSub && planName != 'Free'
+                          ? Icons.workspace_premium
+                          : Icons.star_outline,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hasActiveSub && planName != 'Free'
+                              ? '$planName Plan'
+                              : 'Boost Your Sales',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (badge != null)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              badge,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white.withOpacity(0.7),
+                  size: 18,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (hasActiveSub && currentSub != null && planName != 'Free') ...[
+              // Active subscription info
+              Row(
+                children: [
+                  _buildSubInfoChip(Icons.calendar_today, currentSub.daysRemainingDisplay),
+                  const SizedBox(width: 12),
+                  _buildSubInfoChip(Icons.trending_up, '${currentSub.plan?.boostMultiplier ?? 1.0}x Boost'),
+                ],
+              ),
+              if (currentSub.isExpiringSoon)
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber, color: Colors.white, size: 18),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Subscription expiring soon! Tap to renew.',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ] else ...[
+              // No subscription - promotional message
+              Text(
+                'Get more visibility & sell faster with premium plans',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.bolt, color: Colors.amber[700], size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Upgrade Now',
+                      style: TextStyle(
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubInfoChip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickActions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -559,7 +751,16 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen>
                 onTap: () => context.push('/vendor/services/create'),
               ),
             ),
-            const Expanded(flex: 2, child: SizedBox()),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.workspace_premium,
+                label: 'Subscription',
+                color: Colors.amber[700]!,
+                onTap: () => context.push('/vendor/subscription'),
+              ),
+            ),
+            const Expanded(child: SizedBox()),
           ],
         ),
       ],

@@ -253,7 +253,9 @@ class CheckoutNotifier extends StateNotifier<CheckoutState> {
     state = state.copyWith(notes: notes);
   }
 
-  Future<OrderModel?> placeOrder() async {
+  Future<OrderModel?> placeOrder({
+    List<Map<String, dynamic>>? selectedItems,
+  }) async {
     if (!state.canPlaceOrder) {
       state = state.copyWith(error: 'Please select address and payment method');
       return null;
@@ -263,13 +265,19 @@ class CheckoutNotifier extends StateNotifier<CheckoutState> {
     state = state.copyWith(isPlacingOrder: true, error: null);
 
     try {
+      final data = <String, dynamic>{
+        'shipping_address_id': state.selectedAddress!.id,
+        'payment_method': state.selectedPaymentMethod,
+        'notes': state.notes,
+      };
+
+      if (selectedItems != null && selectedItems.isNotEmpty) {
+        data['selected_items'] = selectedItems;
+      }
+
       final response = await _api.post(
         ApiEndpoints.placeOrder,
-        data: {
-          'shipping_address_id': state.selectedAddress!.id,
-          'payment_method': state.selectedPaymentMethod,
-          'notes': state.notes,
-        },
+        data: data,
       );
       print('📦 Place order response: ${response.statusCode}');
 

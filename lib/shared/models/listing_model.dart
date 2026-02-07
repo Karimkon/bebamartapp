@@ -41,7 +41,11 @@ class ListingModel {
   // Computed properties from Laravel
   final double? averageRating;
   final int? reviewsCount;
-  
+
+  // Subscription ranking fields
+  final double? rankingScore;
+  final double boostMultiplier;
+
   // Add this getter to fix the rating error
   double get rating => averageRating ?? 0.0;
   
@@ -75,6 +79,8 @@ class ListingModel {
     this.reviews,
     this.averageRating,
     this.reviewsCount,
+    this.rankingScore,
+    this.boostMultiplier = 1.0,
   });
   
   factory ListingModel.fromJson(Map<String, dynamic> json) {
@@ -161,18 +167,27 @@ class ListingModel {
       images: images,
       variants: variants,
       reviews: reviews,
-      averageRating: json['average_rating'] is num 
-          ? json['average_rating'].toDouble() 
-          : json['rating'] is num 
-            ? json['rating'].toDouble() 
+      averageRating: json['average_rating'] is num
+          ? json['average_rating'].toDouble()
+          : json['rating'] is num
+            ? json['rating'].toDouble()
             : 0.0,
-      reviewsCount: json['reviews_count'] is int 
-          ? json['reviews_count'] 
-          : json['reviews_count'] != null 
-            ? int.tryParse(json['reviews_count']?.toString() ?? '0') 
+      reviewsCount: json['reviews_count'] is int
+          ? json['reviews_count']
+          : json['reviews_count'] != null
+            ? int.tryParse(json['reviews_count']?.toString() ?? '0')
             : 0,
+      rankingScore: json['ranking_score'] is num
+          ? json['ranking_score'].toDouble()
+          : null,
+      boostMultiplier: json['boost_multiplier'] is num
+          ? json['boost_multiplier'].toDouble()
+          : (json['is_promoted'] == true ? 1.5 : 1.0),
     );
   }
+
+  /// Whether this listing is from a paid subscriber (promoted)
+  bool get isPromoted => boostMultiplier > 1.0;
   
   Map<String, dynamic> toJson() {
     return {
@@ -245,6 +260,12 @@ class ListingModel {
   bool get isInStock => stock > 0 || hasVariations;
   
   String get formattedPrice => 'UGX ${NumberFormat('#,##0', 'en_US').format(price)}';
+
+  // Subscription helpers
+  bool get vendorHasBadge => vendor?.hasSubscriptionBadge ?? false;
+  String? get vendorBadgeText => vendor?.subscriptionBadgeText;
+  bool get vendorIsPremium => vendor?.hasPaidSubscription ?? false;
+  bool get isBoosted => boostMultiplier > 1.0;
   
   ListingVariantModel? findVariantByAttributes(String? color, String? size) {
     try {

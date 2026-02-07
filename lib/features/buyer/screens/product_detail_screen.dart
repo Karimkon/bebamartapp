@@ -941,6 +941,21 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       return;
     }
 
+    // Prevent users from messaging their own vendor profile
+    if (user.vendorProfile != null && user.vendorProfile!.id == listing.vendor!.id) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('You cannot message yourself'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      return;
+    }
+
+    print('🔄 Contacting vendor: ${listing.vendor!.id} for listing: ${listing.id}');
+
     showDialog(
       context: context,
       barrierDismissible: false,

@@ -236,6 +236,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
+  List<Map<String, dynamic>> _buildSelectedItemsList() {
+    final cartState = ref.read(cartProvider);
+    return cartState.selectedItems.map((item) => {
+      'listing_id': item.listingId,
+      'variant_id': item.variantId,
+    }).toList();
+  }
+
   Future<void> _placeOrderWithPayment({
     required String paymentType,
     String? phoneNumber,
@@ -249,8 +257,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     ref.read(checkoutProvider.notifier).selectPaymentMethod(_selectedPaymentMethod);
     ref.read(checkoutProvider.notifier).setNotes(_notesController.text.trim());
 
-    // First place the order
-    final order = await ref.read(checkoutProvider.notifier).placeOrder();
+    // First place the order with selected items
+    final selectedItems = _buildSelectedItemsList();
+    final order = await ref.read(checkoutProvider.notifier).placeOrder(
+      selectedItems: selectedItems,
+    );
 
     if (order == null) {
       setState(() {
@@ -285,8 +296,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (!mounted) return;
 
     if (paymentResult['success'] == true && paymentResult['payment_url'] != null) {
-      // Clear cart
-      await ref.read(cartProvider.notifier).clearCart();
+      // Reload cart to reflect remaining items
+      await ref.read(cartProvider.notifier).loadCart();
 
       // Navigate to payment webview
       context.push(
@@ -298,8 +309,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       );
     } else {
       // Payment initialization failed, but order was placed
-      // Clear cart and show message to retry payment from orders
-      await ref.read(cartProvider.notifier).clearCart();
+      // Reload cart and show message to retry payment from orders
+      await ref.read(cartProvider.notifier).loadCart();
 
       _showPaymentPendingDialog(order.orderNumber, paymentResult['message']);
     }
@@ -375,15 +386,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     ref.read(checkoutProvider.notifier).selectPaymentMethod(_selectedPaymentMethod);
     ref.read(checkoutProvider.notifier).setNotes(_notesController.text.trim());
 
-    final order = await ref.read(checkoutProvider.notifier).placeOrder();
+    // Place order with selected items
+    final selectedItems = _buildSelectedItemsList();
+    final order = await ref.read(checkoutProvider.notifier).placeOrder(
+      selectedItems: selectedItems,
+    );
 
     setState(() {
       _isPlacingOrder = false;
     });
 
     if (order != null && mounted) {
-      // Clear cart
-      await ref.read(cartProvider.notifier).clearCart();
+      // Reload cart to reflect remaining items
+      await ref.read(cartProvider.notifier).loadCart();
 
       // Show success dialog
       showDialog(
@@ -468,7 +483,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final cartState = ref.watch(cartProvider);
     final checkoutState = ref.watch(checkoutProvider);
 
-    if (cartState.isEmpty) {
+    final selectedItems = cartState.selectedItems;
+
+    if (cartState.isEmpty || selectedItems.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Checkout')),
         body: Center(
@@ -477,14 +494,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             children: [
               Icon(Icons.shopping_cart_outlined, size: 80, color: AppColors.textTertiary),
               const SizedBox(height: 16),
-              const Text(
-                'Your cart is empty',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              Text(
+                cartState.isEmpty ? 'Your cart is empty' : 'No items selected',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () => context.go('/'),
-                child: const Text('Start Shopping'),
+                onPressed: () => cartState.isEmpty ? context.go('/') : context.pop(),
+                child: Text(cartState.isEmpty ? 'Start Shopping' : 'Go Back to Cart'),
               ),
             ],
           ),
@@ -576,15 +593,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Total',
-                    style: TextStyle(
+                  Text(
+                    'Total (${selectedItems.length} items)',
+                    style: const TextStyle(
                       fontSize: 16,
                       color: AppColors.textSecondary,
                     ),
                   ),
                   Text(
-                    cartState.formattedTotal,
+                    cartState.formattedSelectedTotal,
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -973,6 +990,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Widget _buildOrderSummary(CartState cartState) {
+    final items = cartState.selectedItems;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -982,8 +1001,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ),
       child: Column(
         children: [
-          // Cart Items
-          ...cartState.items.map((item) => Padding(
+          // Cart Items (only selected)
+          ...items.map((item) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
@@ -1036,19 +1055,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ],
             ),
           )).toList(),
-          
+
           const Divider(height: 24),
-          
+
           // Subtotal
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Subtotal', style: TextStyle(color: AppColors.textSecondary)),
-              Text(cartState.formattedSubtotal, style: const TextStyle(fontWeight: FontWeight.w500)),
+              Text(cartState.formattedSelectedSubtotal, style: const TextStyle(fontWeight: FontWeight.w500)),
             ],
           ),
           const SizedBox(height: 8),
-          
+
           // Shipping
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1063,16 +1082,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ),
             ],
           ),
-          
+
           const Divider(height: 24),
-          
+
           // Total
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               Text(
-                cartState.formattedTotal,
+                cartState.formattedSelectedTotal,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
