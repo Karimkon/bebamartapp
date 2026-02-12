@@ -1263,19 +1263,28 @@ class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
     required String vendorType,
     required String businessName,
     required String country,
-    String? city, // Now optional
-    String? address, // Now optional
+    String? city,
+    String? address,
     required String preferredCurrency,
     double? annualTurnover,
-    required File nationalIdFront,
-    required File nationalIdBack,
-    File? bankStatement, // Now optional
-    File? proofOfAddress, // Now optional
-    String? guarantorName, // Now optional
-    String? guarantorPhone, // Now optional
-    File? guarantorId, // Now optional
+    File? nationalIdFront,
+    File? nationalIdBack,
+    File? bankStatement,
+    File? proofOfAddress,
+    String? guarantorName,
+    String? guarantorPhone,
+    File? guarantorId,
     File? companyRegistration,
     File? taxCertificate,
+    // China supplier fields
+    String? chinaCompanyName,
+    String? uscc,
+    String? legalRepresentative,
+    String? businessScope,
+    String? chinaRegisteredAddress,
+    String? registeredCapital,
+    File? businessLicense,
+    List<File>? industryPermits,
   }) async {
     print('🔄 VendorOnboardingNotifier: Submitting onboarding application...');
     state = state.copyWith(isLoading: true, error: null);
@@ -1301,17 +1310,59 @@ class VendorOnboardingNotifier extends StateNotifier<VendorOnboardingState> {
         'terms': '1',
       });
 
-      // Add required files (National ID)
-      formData.files.addAll([
-        MapEntry('national_id_front', await MultipartFile.fromFile(
+      // China supplier text fields
+      if (vendorType == 'china_supplier') {
+        if (chinaCompanyName != null && chinaCompanyName.isNotEmpty) {
+          formData.fields.add(MapEntry('china_company_name', chinaCompanyName));
+        }
+        if (uscc != null && uscc.isNotEmpty) {
+          formData.fields.add(MapEntry('uscc', uscc));
+        }
+        if (legalRepresentative != null && legalRepresentative.isNotEmpty) {
+          formData.fields.add(MapEntry('legal_representative', legalRepresentative));
+        }
+        if (businessScope != null && businessScope.isNotEmpty) {
+          formData.fields.add(MapEntry('business_scope', businessScope));
+        }
+        if (chinaRegisteredAddress != null && chinaRegisteredAddress.isNotEmpty) {
+          formData.fields.add(MapEntry('china_registered_address', chinaRegisteredAddress));
+        }
+        if (registeredCapital != null && registeredCapital.isNotEmpty) {
+          formData.fields.add(MapEntry('registered_capital', registeredCapital));
+        }
+      }
+
+      // Add National ID files (required for non-China, optional for China suppliers)
+      if (nationalIdFront != null) {
+        formData.files.add(MapEntry('national_id_front', await MultipartFile.fromFile(
           nationalIdFront.path,
           filename: getFileName(nationalIdFront, 'id_front'),
-        )),
-        MapEntry('national_id_back', await MultipartFile.fromFile(
+        )));
+      }
+      if (nationalIdBack != null) {
+        formData.files.add(MapEntry('national_id_back', await MultipartFile.fromFile(
           nationalIdBack.path,
           filename: getFileName(nationalIdBack, 'id_back'),
-        )),
-      ]);
+        )));
+      }
+
+      // China supplier documents
+      if (vendorType == 'china_supplier') {
+        if (businessLicense != null) {
+          formData.files.add(MapEntry('business_license', await MultipartFile.fromFile(
+            businessLicense.path,
+            filename: getFileName(businessLicense, 'business_license'),
+          )));
+        }
+        if (industryPermits != null) {
+          for (int i = 0; i < industryPermits.length; i++) {
+            formData.files.add(MapEntry('industry_permits[$i]', await MultipartFile.fromFile(
+              industryPermits[i].path,
+              filename: getFileName(industryPermits[i], 'industry_permit_$i'),
+            )));
+          }
+        }
+      }
 
       // Add optional files if provided
       if (bankStatement != null) {

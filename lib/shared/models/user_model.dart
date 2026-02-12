@@ -161,6 +161,7 @@ class VendorProfileModel {
   final String vettingStatus; // pending, approved, rejected
   final String? country;
   final String? city;
+  final String? uscc; // Unified Social Credit Code for China suppliers
   final double rating;
   final int? totalSales;
   final bool isVerified; // Blue tick verified badge
@@ -188,6 +189,7 @@ class VendorProfileModel {
     this.vettingStatus = 'pending',
     this.country,
     this.city,
+    this.uscc,
     this.rating = 0.0,
     this.totalSales,
     this.isVerified = false,
@@ -220,6 +222,7 @@ class VendorProfileModel {
       vettingStatus: json['vetting_status']?.toString() ?? 'pending',
       country: json['country']?.toString(),
       city: json['city']?.toString(),
+      uscc: json['uscc']?.toString(),
       rating: json['rating'] is num ? json['rating'].toDouble() : (double.tryParse(json['rating']?.toString() ?? '') ?? 0.0),
       totalSales: json['total_sales'] is int ? json['total_sales'] : int.tryParse(json['total_sales']?.toString() ?? '0'),
       isVerified: json['is_verified'] == true || json['is_verified'] == 1,
@@ -255,6 +258,7 @@ class VendorProfileModel {
       'vetting_status': vettingStatus,
       'country': country,
       'city': city,
+      'uscc': uscc,
       'rating': rating,
       'total_sales': totalSales,
       'is_verified': isVerified,
@@ -278,6 +282,11 @@ class VendorProfileModel {
   bool get isApproved => vettingStatus == 'approved';
   bool get isPending => vettingStatus == 'pending';
   bool get isRejected => vettingStatus == 'rejected';
+  bool get isChinaSupplier => vendorType == 'china_supplier';
+  Map<String, dynamic>? get chinaVerification =>
+      meta?['china_verification'] is Map<String, dynamic>
+          ? meta!['china_verification'] as Map<String, dynamic>
+          : null;
 
   String get displayRating => rating.toStringAsFixed(1);
 

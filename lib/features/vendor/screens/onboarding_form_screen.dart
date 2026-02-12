@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import '../providers/vendor_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -15,7 +18,7 @@ class OnboardingFormScreen extends ConsumerStatefulWidget {
 
 class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   // Controllers
   final _businessNameController = TextEditingController();
   final _cityController = TextEditingController();
@@ -24,12 +27,21 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
   final _guarantorPhoneController = TextEditingController();
   final _annualTurnoverController = TextEditingController();
 
+  // China verification controllers
+  final _chinaCompanyNameController = TextEditingController();
+  final _usccController = TextEditingController();
+  final _legalRepController = TextEditingController();
+  final _businessScopeController = TextEditingController();
+  final _chinaAddressController = TextEditingController();
+  final _registeredCapitalController = TextEditingController();
+
   // State
   String _vendorType = 'local_retail';
   String _country = 'Uganda';
   String _currency = 'UGX';
   bool _agreedToTerms = false;
-  
+
+  // Existing doc files
   File? _idFront;
   File? _idBack;
   File? _bankStatement;
@@ -37,6 +49,12 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
   File? _guarantorId;
   File? _compReg;
   File? _taxCert;
+
+  // China doc files
+  File? _businessLicense;
+  List<File> _industryPermits = [];
+
+  bool get _isChinaSupplier => _vendorType == 'china_supplier';
 
   final _picker = ImagePicker();
 
@@ -48,7 +66,27 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
     _guarantorNameController.dispose();
     _guarantorPhoneController.dispose();
     _annualTurnoverController.dispose();
+    _chinaCompanyNameController.dispose();
+    _usccController.dispose();
+    _legalRepController.dispose();
+    _businessScopeController.dispose();
+    _chinaAddressController.dispose();
+    _registeredCapitalController.dispose();
     super.dispose();
+  }
+
+  void _onVendorTypeChanged(String? type) {
+    if (type == null) return;
+    setState(() {
+      _vendorType = type;
+      if (_isChinaSupplier) {
+        _country = 'China';
+        _currency = 'CNY';
+      } else {
+        _country = 'Uganda';
+        if (_currency == 'CNY') _currency = 'UGX';
+      }
+    });
   }
 
   Future<void> _pickImage(String type) async {
@@ -67,6 +105,7 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
             case 'guarantor': _guarantorId = File(image.path); break;
             case 'comp_reg': _compReg = File(image.path); break;
             case 'tax': _taxCert = File(image.path); break;
+
           }
         });
       }
@@ -77,19 +116,92 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
     }
   }
 
+  /// Pick a document file (PDF or image) for business license
+  Future<void> _pickDocument(String type) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      );
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          switch (type) {
+            case 'business_license':
+              _businessLicense = File(result.files.single.path!);
+              break;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick file: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickIndustryPermit() async {
+    if (_industryPermits.length >= 5) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Maximum 5 industry permits allowed')),
+        );
+      }
+      return;
+    }
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      );
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          _industryPermits.add(File(result.files.single.path!));
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick file: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Only National ID front and back are required
-    if (_idFront == null || _idBack == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please upload your National ID (front and back)'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
+    // Validate required documents based on vendor type
+    if (_isChinaSupplier) {
+      if (_businessLicense == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please upload your Business License'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+    } else {
+      if (_idFront == null || _idBack == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please upload your National ID (front and back)'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
     }
 
     if (!_agreedToTerms) {
@@ -103,7 +215,6 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
       return;
     }
 
-    // Show uploading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -132,18 +243,25 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
       address: _addressController.text.isNotEmpty ? _addressController.text : null,
       preferredCurrency: _currency,
       annualTurnover: double.tryParse(_annualTurnoverController.text),
-      nationalIdFront: _idFront!,
-      nationalIdBack: _idBack!,
-      bankStatement: _bankStatement, // Now optional
-      proofOfAddress: _proofOfAddress, // Now optional
+      nationalIdFront: _idFront,
+      nationalIdBack: _idBack,
+      bankStatement: _bankStatement,
+      proofOfAddress: _proofOfAddress,
       guarantorName: _guarantorNameController.text.isNotEmpty ? _guarantorNameController.text : null,
       guarantorPhone: _guarantorPhoneController.text.isNotEmpty ? _guarantorPhoneController.text : null,
-      guarantorId: _guarantorId, // Now optional
+      guarantorId: _guarantorId,
       companyRegistration: _compReg,
       taxCertificate: _taxCert,
+      chinaCompanyName: _isChinaSupplier ? _chinaCompanyNameController.text : null,
+      uscc: _isChinaSupplier ? _usccController.text : null,
+      legalRepresentative: _isChinaSupplier ? _legalRepController.text : null,
+      businessScope: _isChinaSupplier ? _businessScopeController.text : null,
+      chinaRegisteredAddress: _isChinaSupplier ? _chinaAddressController.text : null,
+      registeredCapital: _isChinaSupplier ? _registeredCapitalController.text : null,
+      businessLicense: _businessLicense,
+      industryPermits: _industryPermits.isNotEmpty ? _industryPermits : null,
     );
 
-    // Close the loading dialog
     if (mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
@@ -155,8 +273,6 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
           backgroundColor: Colors.green,
         ),
       );
-      // No need to navigate, the parent VendorOnboardingScreen
-      // watches the state and will switch to the status view automatically.
     } else if (mounted) {
       final error = ref.read(vendorOnboardingProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -170,6 +286,9 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
   }
 
   Widget _buildDocPicker(String label, File? file, String type, {bool required = true}) {
+    final bool isPdf = file != null && file.path.toLowerCase().endsWith('.pdf');
+    final bool useDocPicker = type == 'business_license';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -181,14 +300,14 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
         ),
         const SizedBox(height: 8),
         InkWell(
-          onTap: () => _pickImage(type),
+          onTap: () => useDocPicker ? _pickDocument(type) : _pickImage(type),
           child: Container(
             height: 120,
             width: double.infinity,
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: file != null ? Colors.green.shade300 : Colors.grey.shade300),
               borderRadius: BorderRadius.circular(8),
-              color: Colors.grey.shade50,
+              color: file != null ? Colors.green.shade50 : Colors.grey.shade50,
             ),
             child: file != null
                 ? Stack(
@@ -196,7 +315,22 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.file(file, fit: BoxFit.cover),
+                        child: isPdf
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.picture_as_pdf, color: Colors.red.shade400, size: 40),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      file.path.split('/').last.split('\\').last,
+                                      style: TextStyle(color: Colors.green.shade700, fontSize: 11),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : Image.file(file, fit: BoxFit.cover),
                       ),
                       Positioned(
                         right: 8,
@@ -216,6 +350,7 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                                 case 'guarantor': _guarantorId = null; break;
                                 case 'comp_reg': _compReg = null; break;
                                 case 'tax': _taxCert = null; break;
+                                case 'business_license': _businessLicense = null; break;
                               }
                             }),
                           ),
@@ -226,15 +361,116 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.add_a_photo_outlined, color: Colors.grey.shade400, size: 32),
+                      Icon(useDocPicker ? Icons.upload_file : Icons.add_a_photo_outlined, color: Colors.grey.shade400, size: 32),
                       const SizedBox(height: 8),
-                      Text('Select File', style: TextStyle(color: Colors.grey.shade600)),
+                      Text(useDocPicker ? 'Select File (PDF or Image)' : 'Select File', style: TextStyle(color: Colors.grey.shade600)),
                     ],
                   ),
           ),
         ),
         const SizedBox(height: 16),
       ],
+    );
+  }
+
+  Widget _buildMultiDocPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('Industry Permits', style: TextStyle(fontWeight: FontWeight.w500)),
+            Text(' (optional, max 5)', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ..._industryPermits.asMap().entries.map((entry) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Container(
+            height: 60,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.green.shade300),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.green.shade50,
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                Icon(
+                  entry.value.path.toLowerCase().endsWith('.pdf')
+                      ? Icons.picture_as_pdf
+                      : Icons.description,
+                  color: Colors.green.shade600,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Permit ${entry.key + 1} (${entry.value.path.split('/').last.split('\\').last})',
+                    style: TextStyle(color: Colors.green.shade700, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: Colors.red.shade400, size: 20),
+                  onPressed: () => setState(() => _industryPermits.removeAt(entry.key)),
+                ),
+              ],
+            ),
+          ),
+        )),
+        if (_industryPermits.length < 5)
+          InkWell(
+            onTap: _pickIndustryPermit,
+            child: Container(
+              height: 60,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.grey.shade50,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.upload_file, color: Colors.grey.shade500),
+                  const SizedBox(width: 8),
+                  Text('Add Permit (PDF or Image)', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                ],
+              ),
+            ),
+          ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildVerificationLink(String title, String description, String url) {
+    return InkWell(
+      onTap: () => _launchUrl(url),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.red.shade100),
+          borderRadius: BorderRadius.circular(8),
+          color: Colors.red.shade50,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.open_in_new, size: 16, color: Colors.red.shade600),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.red.shade800)),
+                  Text(description, style: TextStyle(fontSize: 10, color: Colors.red.shade400)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 16, color: Colors.red.shade300),
+          ],
+        ),
+      ),
     );
   }
 
@@ -247,7 +483,7 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
         title: const Text('Vendor Application'),
         elevation: 0,
       ),
-      body: state.isLoading 
+      body: state.isLoading
         ? const Center(child: CircularProgressIndicator())
         : SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -266,7 +502,8 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 24),
-                  
+
+                  // Business Details Card
                   Card(
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -288,7 +525,7 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                               DropdownMenuItem(value: 'china_supplier', child: Text('Importer / International')),
                               DropdownMenuItem(value: 'dropship', child: Text('Dropshipper')),
                             ],
-                            onChanged: (v) => setState(() => _vendorType = v!),
+                            onChanged: _onVendorTypeChanged,
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -303,11 +540,21 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                           Row(
                             children: [
                               Expanded(
-                                child: TextFormField(
-                                  initialValue: _country,
-                                  decoration: const InputDecoration(labelText: 'Country'),
-                                  readOnly: true,
-                                ),
+                                child: _isChinaSupplier
+                                    ? DropdownButtonFormField<String>(
+                                        value: _country,
+                                        decoration: const InputDecoration(labelText: 'Country'),
+                                        items: const [
+                                          DropdownMenuItem(value: 'China', child: Text('China')),
+                                          DropdownMenuItem(value: 'Uganda', child: Text('Uganda')),
+                                        ],
+                                        onChanged: (v) => setState(() => _country = v!),
+                                      )
+                                    : TextFormField(
+                                        initialValue: _country,
+                                        decoration: const InputDecoration(labelText: 'Country'),
+                                        readOnly: true,
+                                      ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
@@ -325,10 +572,12 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                                 child: DropdownButtonFormField<String>(
                                   value: _currency,
                                   decoration: const InputDecoration(labelText: 'Currency'),
-                                  items: const [
-                                    DropdownMenuItem(value: 'UGX', child: Text('UGX')),
-                                    DropdownMenuItem(value: 'USD', child: Text('USD')),
-                                    DropdownMenuItem(value: 'KES', child: Text('KES')),
+                                  items: [
+                                    const DropdownMenuItem(value: 'UGX', child: Text('UGX')),
+                                    const DropdownMenuItem(value: 'USD', child: Text('USD')),
+                                    const DropdownMenuItem(value: 'KES', child: Text('KES')),
+                                    if (_isChinaSupplier)
+                                      const DropdownMenuItem(value: 'CNY', child: Text('CNY')),
                                   ],
                                   onChanged: (v) => setState(() => _currency = v!),
                                 ),
@@ -341,7 +590,14 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                                     labelText: 'Annual Turnover (Optional)',
                                     prefixText: '$_currency ',
                                   ),
-                                  keyboardType: TextInputType.number,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  validator: (v) {
+                                    if (v != null && v.isNotEmpty && int.tryParse(v) == null) {
+                                      return 'Enter a valid whole number';
+                                    }
+                                    return null;
+                                  },
                                 ),
                               ),
                             ],
@@ -359,13 +615,170 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                       ),
                     ),
                   ),
-                  
+
+                  // China Verification Section (animated show/hide)
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: _isChinaSupplier
+                        ? Column(
+                            children: [
+                              const SizedBox(height: 24),
+                              Card(
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(color: Colors.red.shade300, width: 1.5),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(Icons.verified_user, color: Colors.red.shade600, size: 20),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Chinese Company Verification',
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.red.shade800),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Required for all China-based suppliers',
+                                        style: TextStyle(color: Colors.red.shade400, fontSize: 12),
+                                      ),
+                                      const SizedBox(height: 16),
+
+                                      // Company Chinese Name
+                                      TextFormField(
+                                        controller: _chinaCompanyNameController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Company Chinese Name *',
+                                          hintText: 'e.g. \u6df1\u5733\u5e02\u534e\u4e3a\u6280\u672f\u6709\u9650\u516c\u53f8',
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        validator: (v) => _isChinaSupplier && (v == null || v.isEmpty) ? 'Required for China suppliers' : null,
+                                      ),
+                                      const SizedBox(height: 12),
+
+                                      // USCC
+                                      TextFormField(
+                                        controller: _usccController,
+                                        decoration: InputDecoration(
+                                          labelText: 'USCC (\u7edf\u4e00\u793e\u4f1a\u4fe1\u7528\u4ee3\u7801) *',
+                                          hintText: '18-character code',
+                                          counterText: '${_usccController.text.length}/18',
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        maxLength: 18,
+                                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]'))],
+                                        onChanged: (_) => setState(() {}),
+                                        validator: (v) {
+                                          if (!_isChinaSupplier) return null;
+                                          if (v == null || v.isEmpty) return 'Required for China suppliers';
+                                          if (v.length != 18) return 'USCC must be exactly 18 characters';
+                                          if (!RegExp(r'^[A-Za-z0-9]{18}$').hasMatch(v)) return 'Only letters and numbers allowed';
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 12),
+
+                                      // Legal Representative
+                                      TextFormField(
+                                        controller: _legalRepController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Legal Representative *',
+                                          hintText: 'Name of legal representative',
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        validator: (v) => _isChinaSupplier && (v == null || v.isEmpty) ? 'Required for China suppliers' : null,
+                                      ),
+                                      const SizedBox(height: 12),
+
+                                      // Business Scope
+                                      TextFormField(
+                                        controller: _businessScopeController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Business Scope (\u7ecf\u8425\u8303\u56f4) *',
+                                          hintText: 'As stated on business license',
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        maxLines: 3,
+                                        maxLength: 2000,
+                                        validator: (v) => _isChinaSupplier && (v == null || v.isEmpty) ? 'Required for China suppliers' : null,
+                                      ),
+                                      const SizedBox(height: 12),
+
+                                      // Registered Address
+                                      TextFormField(
+                                        controller: _chinaAddressController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Registered Address *',
+                                          hintText: 'Company registered address in China',
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        validator: (v) => _isChinaSupplier && (v == null || v.isEmpty) ? 'Required for China suppliers' : null,
+                                      ),
+                                      const SizedBox(height: 12),
+
+                                      // Registered Capital
+                                      TextFormField(
+                                        controller: _registeredCapitalController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Registered Capital (Optional)',
+                                          hintText: 'e.g. 1,000,000 CNY',
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+
+                                      const SizedBox(height: 20),
+                                      const Divider(),
+                                      const SizedBox(height: 12),
+
+                                      // Business License Upload
+                                      _buildDocPicker('Business License (\u8425\u4e1a\u6267\u7167)', _businessLicense, 'business_license'),
+
+                                      // Industry Permits
+                                      _buildMultiDocPicker(),
+
+                                      // Verification Resources
+                                      const Divider(),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Verification Resources',
+                                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.red.shade700),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      _buildVerificationLink('GSXT', 'National Enterprise Credit Information', 'https://www.gsxt.gov.cn'),
+                                      const SizedBox(height: 6),
+                                      _buildVerificationLink('China Customs', 'General Administration of Customs', 'http://www.customs.gov.cn'),
+                                      const SizedBox(height: 6),
+                                      _buildVerificationLink('ChinVerify', 'Chinese Company Verification', 'https://www.chinverify.com'),
+                                      const SizedBox(height: 6),
+                                      _buildVerificationLink('QINCheck', 'Business Registration Lookup', 'https://www.qincheck.com'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+
                   const SizedBox(height: 24),
-                  const Text('Required Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+
+                  // Required Documents - conditional based on vendor type
+                  Text(
+                    _isChinaSupplier ? 'Identity Documents (Optional)' : 'Required Documents',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
                   const SizedBox(height: 16),
 
-                  _buildDocPicker('National ID (Front Side)', _idFront, 'id_front'),
-                  _buildDocPicker('National ID (Back Side)', _idBack, 'id_back'),
+                  _buildDocPicker('National ID (Front Side)', _idFront, 'id_front', required: !_isChinaSupplier),
+                  _buildDocPicker('National ID (Back Side)', _idBack, 'id_back', required: !_isChinaSupplier),
 
                   const SizedBox(height: 24),
                   const Text('Optional Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
