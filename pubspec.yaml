@@ -76,6 +76,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.1
   flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.4
 
 # App Icon Configuration (run: flutter pub run flutter_launcher_icons)
 flutter_launcher_icons:
@@ -86,6 +87,16 @@ flutter_launcher_icons:
   adaptive_icon_background: "#1a1a2e"
   adaptive_icon_foreground: "assets/images/logo.png"
   remove_alpha_ios: true
+
+# Splash Screen Configuration (run: dart run flutter_native_splash:create)
+flutter_native_splash:
+  color: "#ffffff"
+  image: "assets/images/logo.png"
+  android: true
+  ios: true
+  android_12:
+    color: "#ffffff"
+    image: "assets/images/logo.png"
 
 flutter:
   uses-material-design: true
