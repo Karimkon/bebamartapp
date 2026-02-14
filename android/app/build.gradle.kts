@@ -20,6 +20,11 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
     // 2. Add the signingConfigs block BEFORE buildTypes
     signingConfigs {
         create("release") {

@@ -287,7 +287,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
-    required String phone,
+    String phone = '',
     required String password,
     required String passwordConfirmation,
     String role = 'buyer',
@@ -296,14 +296,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       print('🚀 Attempting registration for: $email');
-      final response = await _api.post(ApiEndpoints.register, data: {
+      final data = {
         'name': name,
         'email': email,
-        'phone': phone,
         'password': password,
         'password_confirmation': passwordConfirmation,
         'role': role,
-      });
+      };
+      if (phone.isNotEmpty) {
+        data['phone'] = phone;
+      }
+      final response = await _api.post(ApiEndpoints.register, data: data);
 
       print('📦 Registration response: ${response.statusCode}');
       print('📦 Registration data: ${response.data}');

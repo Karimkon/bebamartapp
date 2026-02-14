@@ -368,19 +368,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
                 const SizedBox(height: 16),
                 
-                // Phone Field
+                // Phone Field (Optional)
                 CustomTextField(
                   controller: _phoneController,
-                  label: 'Phone Number',
+                  label: 'Phone Number (Optional)',
                   hint: 'Enter your phone number',
                   keyboardType: TextInputType.phone,
                   prefixIcon: Icons.phone_outlined,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your phone number';
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 16),
                 
