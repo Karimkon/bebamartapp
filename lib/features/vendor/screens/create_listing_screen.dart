@@ -11,6 +11,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/vendor_provider.dart';
 import '../../../shared/models/category_model.dart';
+import '../../../shared/models/attribute_field_model.dart';
+import '../../auth/providers/auth_provider.dart' show apiClientProvider;
 
 class CreateListingScreen extends ConsumerStatefulWidget {
   final int? listingId; // If provided, we're editing
@@ -68,6 +70,11 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   List<int> _existingImageIds = []; // Tracks actual image IDs from API
   List<int> _deleteImageIds = [];
   bool _isLoading = false;
+
+  // Attributes (category-specific)
+  Map<String, String> _attributes = {};
+  List<AttributeFieldModel> _categoryAttributes = [];
+  bool _loadingAttributes = false;
 
   // Variants
   bool _enableVariants = false;
@@ -178,6 +185,29 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
     });
   }
 
+  Future<void> _fetchCategoryAttributes(int categoryId) async {
+    setState(() => _loadingAttributes = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.get(ApiEndpoints.categoryAttributes(categoryId));
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final fields = response.data['attribute_fields'] as List? ?? [];
+        setState(() {
+          _categoryAttributes = fields
+              .map((f) => AttributeFieldModel.fromJson(Map<String, dynamic>.from(f)))
+              .toList();
+          // Preserve existing attribute values, only clear ones not in new fields
+          final validKeys = _categoryAttributes.map((f) => f.key).toSet();
+          _attributes.removeWhere((key, _) => !validKeys.contains(key));
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching category attributes: $e');
+    } finally {
+      if (mounted) setState(() => _loadingAttributes = false);
+    }
+  }
+
   Future<void> _loadExistingListing() async {
     setState(() => _isLoading = true);
     try {
@@ -208,6 +238,12 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
             _existingImageIds = images.map<int>((img) => img['id'] as int).toList();
           }
 
+          // Load existing attributes
+          if (listing['attributes'] != null && listing['attributes'] is Map) {
+            final attrs = Map<String, dynamic>.from(listing['attributes']);
+            _attributes = attrs.map((k, v) => MapEntry(k, v?.toString() ?? ''));
+          }
+
           // Set selected category from the loaded listing (search 3 levels deep)
           if (listing['category'] != null) {
             final catData = listing['category'] as Map<String, dynamic>;
@@ -226,6 +262,11 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
             }
           }
         });
+
+        // Fetch attribute fields for the loaded category
+        if (_selectedCategory != null) {
+          _fetchCategoryAttributes(_selectedCategory!.id);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -340,6 +381,10 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
       final notifier = ref.read(createListingProvider.notifier);
       bool success;
 
+      // Filter out empty attribute values
+      final filteredAttributes = Map<String, String>.from(_attributes)
+        ..removeWhere((_, v) => v.trim().isEmpty);
+
       if (isEditing) {
         success = await notifier.updateListing(
           listingId: widget.listingId!,
@@ -357,6 +402,7 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
           taxDescription: _taxDescriptionController.text.trim().isNotEmpty
               ? _taxDescriptionController.text.trim()
               : null,
+          attributes: filteredAttributes.isNotEmpty ? filteredAttributes : null,
         );
       } else {
         // Prepare variants if enabled
@@ -383,6 +429,7 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
           taxDescription: _taxDescriptionController.text.trim().isNotEmpty
               ? _taxDescriptionController.text.trim()
               : null,
+          attributes: filteredAttributes.isNotEmpty ? filteredAttributes : null,
         );
       }
 
@@ -467,6 +514,24 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
               const SizedBox(height: 12),
               _buildCategoryDropdown(createState.categories),
               const SizedBox(height: 24),
+
+              // Dynamic Attributes Section (category-specific)
+              if (_categoryAttributes.isNotEmpty) ...[
+                _buildSectionTitle('Specifications'),
+                const SizedBox(height: 4),
+                Text(
+                  'Fill in the details specific to this category',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                _buildAttributeFields(),
+                const SizedBox(height: 24),
+              ],
+              if (_loadingAttributes)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 24),
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
 
               // Pricing Section
               _buildSectionTitle('Pricing & Inventory'),
@@ -967,6 +1032,7 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                                   : null,
                               onTap: () {
                                 setState(() => _selectedCategory = grandchild);
+                                _fetchCategoryAttributes(grandchild.id);
                                 Navigator.pop(context);
                               },
                             );
@@ -993,6 +1059,7 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                             : null,
                         onTap: () {
                           setState(() => _selectedCategory = child);
+                          _fetchCategoryAttributes(child.id);
                           Navigator.pop(context);
                         },
                       );
@@ -1016,6 +1083,93 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
         const SizedBox(width: 12),
         Expanded(child: _ConditionOption(label: 'Refurbished', isSelected: _condition == 'refurbished', onTap: () => setState(() => _condition = 'refurbished'))),
       ],
+    );
+  }
+
+  Widget _buildAttributeFields() {
+    return Column(
+      children: _categoryAttributes.map((field) {
+        if (field.type == 'select' && field.options != null) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: DropdownButtonFormField<String>(
+              value: _attributes[field.key]?.isNotEmpty == true
+                  ? (field.options!.contains(_attributes[field.key]) ? _attributes[field.key] : null)
+                  : null,
+              decoration: InputDecoration(
+                labelText: field.label + (field.required ? ' *' : ''),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+                ),
+              ),
+              items: field.options!.map((option) {
+                return DropdownMenuItem(value: option, child: Text(option));
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  if (value != null) {
+                    _attributes[field.key] = value;
+                  } else {
+                    _attributes.remove(field.key);
+                  }
+                });
+              },
+              validator: field.required
+                  ? (value) => value == null || value.isEmpty ? '${field.label} is required' : null
+                  : null,
+            ),
+          );
+        }
+
+        // text or number type
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: TextFormField(
+            initialValue: _attributes[field.key] ?? '',
+            keyboardType: field.type == 'number' ? TextInputType.number : TextInputType.text,
+            inputFormatters: field.type == 'number'
+                ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))]
+                : null,
+            onChanged: (value) => _attributes[field.key] = value,
+            validator: field.required
+                ? (value) => value == null || value.trim().isEmpty ? '${field.label} is required' : null
+                : null,
+            decoration: InputDecoration(
+              labelText: field.label + (field.required ? ' *' : ''),
+              hintText: field.placeholder,
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppColors.primary, width: 2),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppColors.error),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 

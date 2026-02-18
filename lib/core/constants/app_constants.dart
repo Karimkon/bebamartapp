@@ -105,6 +105,7 @@ class ApiEndpoints {
   // Categories
   static const String categories = '/api/categories';
   static String categoryDetail(String slug) => '/api/categories/$slug';
+  static String categoryAttributes(int id) => '/api/categories/$id/attributes';
   
   // Marketplace/Listings
   static const String marketplace = '/api/marketplace';
@@ -279,7 +280,16 @@ class ApiEndpoints {
   
   // Health check
   static const String health = '/api/health';
-  
+
   // Import Calculator
   static const String importCalculate = '/api/import-calculate';
+
+  // Push Notifications
+  static const String deviceToken = '/api/device-token';
+  static const String notifications = '/api/notifications';
+  static String notificationRead(int id) => '/api/notifications/$id/read';
+  static const String notificationsReadAll = '/api/notifications/read-all';
+  static const String notificationsUnreadCount = '/api/notifications/unread-count';
+  static const String notificationPreferences = '/api/notification-preferences';
+  static const String searchQueries = '/api/search-queries';
 }

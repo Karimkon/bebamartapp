@@ -89,10 +89,76 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
     });
   }
 
-  Future<void> _pickImage(String type) async {
+  void _showImageSourcePicker(String type) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Text(
+              'Upload Document',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.camera_alt, color: Colors.blue.shade600),
+              ),
+              title: const Text('Take Photo'),
+              subtitle: const Text('Use camera to capture document'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(type, ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.photo_library, color: Colors.green.shade600),
+              ),
+              title: const Text('Choose from Gallery'),
+              subtitle: const Text('Select an existing photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(type, ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(String type, ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 70,
       );
       if (image != null) {
@@ -105,7 +171,6 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
             case 'guarantor': _guarantorId = File(image.path); break;
             case 'comp_reg': _compReg = File(image.path); break;
             case 'tax': _taxCert = File(image.path); break;
-
           }
         });
       }
@@ -300,7 +365,7 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
         ),
         const SizedBox(height: 8),
         InkWell(
-          onTap: () => useDocPicker ? _pickDocument(type) : _pickImage(type),
+          onTap: () => useDocPicker ? _pickDocument(type) : _showImageSourcePicker(type),
           child: Container(
             height: 120,
             width: double.infinity,
@@ -363,7 +428,7 @@ class _OnboardingFormScreenState extends ConsumerState<OnboardingFormScreen> {
                     children: [
                       Icon(useDocPicker ? Icons.upload_file : Icons.add_a_photo_outlined, color: Colors.grey.shade400, size: 32),
                       const SizedBox(height: 8),
-                      Text(useDocPicker ? 'Select File (PDF or Image)' : 'Select File', style: TextStyle(color: Colors.grey.shade600)),
+                      Text(useDocPicker ? 'Select File (PDF or Image)' : 'Take Photo or Choose File', style: TextStyle(color: Colors.grey.shade600)),
                     ],
                   ),
           ),

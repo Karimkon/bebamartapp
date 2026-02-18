@@ -14,6 +14,7 @@ import '../providers/wishlist_provider.dart';
 import '../providers/variation_provider.dart';
 import '../../../shared/models/variation_modal.dart';
 import '../../chat/providers/chat_provider.dart';
+import '../../notifications/providers/notification_provider.dart';
 import '../providers/service_category_provider.dart';
 import '../../../shared/models/service_model.dart';
 import '../../../shared/models/job_model.dart';
@@ -485,7 +486,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // Notification/Messages Icon (if logged in)
+          // Notification Bell Icon (if logged in)
+          if (user != null)
+            Consumer(
+              builder: (context, ref, child) {
+                final notifCountAsync = ref.watch(notificationUnreadCountProvider);
+                final notifCount = notifCountAsync.valueOrNull ?? 0;
+
+                return IconButton(
+                  onPressed: () => context.push('/notifications'),
+                  icon: Stack(
+                    children: [
+                      const Icon(Icons.notifications_outlined, color: AppColors.textSecondary),
+                      if (notifCount > 0)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                            decoration: const BoxDecoration(
+                              color: AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              notifCount > 99 ? '99+' : notifCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+          // Chat/Messages Icon (if logged in)
           if (user != null)
             Consumer(
               builder: (context, ref, child) {

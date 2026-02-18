@@ -27,6 +27,21 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+
+    // Fix for outdated plugins missing the required 'namespace' property (AGP 8+)
+    project.plugins.withId("com.android.library") {
+        val androidExt = project.extensions.getByType(com.android.build.gradle.LibraryExtension::class.java)
+        if (androidExt.namespace.isNullOrEmpty()) {
+            val manifest = file("${project.projectDir}/src/main/AndroidManifest.xml")
+            if (manifest.exists()) {
+                val pkg = Regex("""package\s*=\s*"([^"]+)"""")
+                    .find(manifest.readText())?.groupValues?.get(1)
+                if (!pkg.isNullOrEmpty()) {
+                    androidExt.namespace = pkg
+                }
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

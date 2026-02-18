@@ -160,6 +160,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   // Description Section
                   _buildDescriptionSection(listing),
 
+                  // Specifications Section (from attributes)
+                  if (listing.attributes != null && listing.attributes!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _buildSpecificationsSection(listing),
+                  ],
+
                   // Details Section
                   if (listing.sku != null || listing.origin != null) ...[
                     const SizedBox(height: 8),
@@ -743,6 +749,30 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           const Text('Description', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Text(listing.description ?? 'No description available', style: const TextStyle(color: AppColors.textSecondary, height: 1.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecificationsSection(ListingModel listing) {
+    final attrs = listing.attributes!;
+    return Container(
+      color: AppColors.white,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Specifications', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          ...attrs.entries.map((entry) {
+            // Convert snake_case key to Title Case label
+            final label = entry.key
+                .replaceAll('_', ' ')
+                .split(' ')
+                .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+                .join(' ');
+            return _buildDetailRow(label, entry.value?.toString() ?? '');
+          }),
         ],
       ),
     );

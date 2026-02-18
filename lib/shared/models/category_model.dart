@@ -4,6 +4,7 @@
 // Import Icons if not already imported - MUST BE AT TOP
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
+import 'attribute_field_model.dart';
 class CategoryModel {
   final int id;
   final String name;
@@ -21,7 +22,11 @@ class CategoryModel {
   final CategoryModel? parent;
   final List<CategoryModel> children;
   final int? listingsCount;
-  
+
+  // Meta / Attribute fields
+  final Map<String, dynamic>? meta;
+  final List<AttributeFieldModel>? attributeFields;
+
   CategoryModel({
     required this.id,
     required this.name,
@@ -37,6 +42,8 @@ class CategoryModel {
     this.parent,
     this.children = const [],
     this.listingsCount,
+    this.meta,
+    this.attributeFields,
   });
   
   factory CategoryModel.fromJson(Map<String, dynamic> json) {
@@ -65,6 +72,19 @@ class CategoryModel {
       }
     }
     
+    // Parse meta and attribute fields
+    Map<String, dynamic>? meta;
+    List<AttributeFieldModel>? attributeFields;
+    if (json['meta'] != null && json['meta'] is Map) {
+      meta = Map<String, dynamic>.from(json['meta']);
+      if (meta['attribute_fields'] != null && meta['attribute_fields'] is List) {
+        attributeFields = (meta['attribute_fields'] as List)
+            .whereType<Map<String, dynamic>>()
+            .map((f) => AttributeFieldModel.fromJson(Map<String, dynamic>.from(f)))
+            .toList();
+      }
+    }
+
     return CategoryModel(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       name: json['name']?.toString() ?? 'Category',
@@ -72,29 +92,31 @@ class CategoryModel {
       description: json['description']?.toString(),
       icon: json['icon']?.toString(),
       image: json['image']?.toString(),
-      isActive: json['is_active'] == true || 
-                json['is_active'] == 1 || 
+      isActive: json['is_active'] == true ||
+                json['is_active'] == 1 ||
                 json['is_active'] == '1' ||
                 json['is_active'] == null,
-      parentId: json['parent_id'] is int 
-          ? json['parent_id'] 
-          : json['parent_id'] != null 
-            ? int.tryParse(json['parent_id']?.toString() ?? '0') 
+      parentId: json['parent_id'] is int
+          ? json['parent_id']
+          : json['parent_id'] != null
+            ? int.tryParse(json['parent_id']?.toString() ?? '0')
             : null,
-      sortOrder: json['sort_order'] is int 
-          ? json['sort_order'] 
-          : json['order'] is int 
-            ? json['order'] 
+      sortOrder: json['sort_order'] is int
+          ? json['sort_order']
+          : json['order'] is int
+            ? json['order']
             : int.tryParse(json['sort_order'].toString()) ?? 0,
       createdAt: parseDateTime(json['created_at']),
       updatedAt: parseDateTime(json['updated_at']),
       parent: parent,
       children: children,
-      listingsCount: json['listings_count'] is int 
-          ? json['listings_count'] 
-          : json['listings_count'] != null 
-            ? int.tryParse(json['listings_count'].toString()) 
+      listingsCount: json['listings_count'] is int
+          ? json['listings_count']
+          : json['listings_count'] != null
+            ? int.tryParse(json['listings_count'].toString())
             : null,
+      meta: meta,
+      attributeFields: attributeFields,
     );
   }
   

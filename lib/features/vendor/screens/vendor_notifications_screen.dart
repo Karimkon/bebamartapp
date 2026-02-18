@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../notifications/providers/notification_provider.dart';
 
 class VendorNotificationsScreen extends ConsumerStatefulWidget {
   const VendorNotificationsScreen({super.key});
@@ -11,15 +12,18 @@ class VendorNotificationsScreen extends ConsumerStatefulWidget {
 }
 
 class _VendorNotificationsScreenState extends ConsumerState<VendorNotificationsScreen> {
-  bool _orderNotifications = true;
-  bool _reviewNotifications = true;
-  bool _payoutNotifications = true;
-  bool _promotionNotifications = false;
-  bool _emailNotifications = true;
-  bool _pushNotifications = true;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(notificationPreferencesProvider.notifier).loadPreferences();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final prefs = ref.watch(notificationPreferencesProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -35,22 +39,31 @@ class _VendorNotificationsScreenState extends ConsumerState<VendorNotificationsS
             icon: Icons.shopping_bag_outlined,
             title: 'New Orders',
             subtitle: 'Get notified when you receive new orders',
-            value: _orderNotifications,
-            onChanged: (value) => setState(() => _orderNotifications = value),
+            value: prefs?.newOrders ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('new_orders', value);
+            },
           ),
           _buildSwitchTile(
             icon: Icons.star_outline,
             title: 'Reviews',
             subtitle: 'Get notified when customers leave reviews',
-            value: _reviewNotifications,
-            onChanged: (value) => setState(() => _reviewNotifications = value),
+            value: prefs?.reviews ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('reviews', value);
+            },
           ),
           _buildSwitchTile(
             icon: Icons.payments_outlined,
             title: 'Payouts',
             subtitle: 'Get notified about payout status',
-            value: _payoutNotifications,
-            onChanged: (value) => setState(() => _payoutNotifications = value),
+            value: prefs?.payouts ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('payouts', value);
+            },
           ),
           const SizedBox(height: 16),
 
@@ -60,8 +73,11 @@ class _VendorNotificationsScreenState extends ConsumerState<VendorNotificationsS
             icon: Icons.campaign_outlined,
             title: 'Promotions & Tips',
             subtitle: 'Get tips to improve your sales',
-            value: _promotionNotifications,
-            onChanged: (value) => setState(() => _promotionNotifications = value),
+            value: prefs?.vendorTips ?? false,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('vendor_tips', value);
+            },
           ),
           const SizedBox(height: 16),
 
@@ -71,15 +87,21 @@ class _VendorNotificationsScreenState extends ConsumerState<VendorNotificationsS
             icon: Icons.email_outlined,
             title: 'Email Notifications',
             subtitle: 'Receive notifications via email',
-            value: _emailNotifications,
-            onChanged: (value) => setState(() => _emailNotifications = value),
+            value: prefs?.emailEnabled ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('email_enabled', value);
+            },
           ),
           _buildSwitchTile(
             icon: Icons.notifications_outlined,
             title: 'Push Notifications',
             subtitle: 'Receive push notifications on your device',
-            value: _pushNotifications,
-            onChanged: (value) => setState(() => _pushNotifications = value),
+            value: prefs?.pushEnabled ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('push_enabled', value);
+            },
           ),
           const SizedBox(height: 32),
         ],

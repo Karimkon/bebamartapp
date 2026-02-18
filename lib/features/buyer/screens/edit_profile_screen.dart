@@ -376,17 +376,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
-                    labelText: 'Phone Number',
+                    labelText: 'Phone Number (Optional)',
                     prefixIcon: Icon(Icons.phone_outlined),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.all(16),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your phone number';
-                    }
-                    return null;
-                  },
+                  validator: null,
                 ),
               ),
               const SizedBox(height: 32),

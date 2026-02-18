@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/user_model.dart';
 import '../../buyer/providers/wishlist_provider.dart';
@@ -180,6 +181,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             );
             print('🎉 Login successful!');
             _loadWishlistAfterAuth();
+            _registerDeviceToken();
             return true;
           } catch (e) {
             print('❌ User parsing error: $e');
@@ -346,6 +348,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
               isLoading: false
             );
             _loadWishlistAfterAuth();
+            _registerDeviceToken();
           }
         }
 
@@ -635,8 +638,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
-    try { 
-      await _api.post(ApiEndpoints.logout); 
+    await _removeDeviceToken();
+    try {
+      await _api.post(ApiEndpoints.logout);
       print('👋 Logout API called');
     } catch (e) {
       print('⚠️ Logout API error (ignored): $e');
@@ -681,6 +685,40 @@ class AuthNotifier extends StateNotifier<AuthState> {
       });
     } catch (e) {
       print('❌ Error loading wishlist after auth: $e');
+    }
+  }
+
+  /// Register FCM device token with backend after login
+  Future<void> _registerDeviceToken() async {
+    try {
+      final notifService = _ref.read(notificationServiceProvider);
+      final token = await notifService.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _api.post(ApiEndpoints.deviceToken, data: {
+          'token': token,
+          'platform': notifService.platform,
+          'device_name': notifService.deviceName,
+        });
+        print('📱 Device token registered');
+      }
+    } catch (e) {
+      print('⚠️ Device token registration failed (non-critical): $e');
+    }
+  }
+
+  /// Remove FCM device token from backend on logout
+  Future<void> _removeDeviceToken() async {
+    try {
+      final notifService = _ref.read(notificationServiceProvider);
+      final token = await notifService.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _api.delete(ApiEndpoints.deviceToken, data: {
+          'token': token,
+        });
+        print('📱 Device token removed');
+      }
+    } catch (e) {
+      print('⚠️ Device token removal failed (non-critical): $e');
     }
   }
 }

@@ -1,18 +1,26 @@
 import UIKit
 import Flutter
-import GoogleSignIn // 1. Add this import
+import GoogleSignIn
+import FirebaseCore
+import FirebaseMessaging
 
-@UIApplicationMain // 2. Ensure this is @UIApplicationMain (standard for Flutter)
+@UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    FirebaseApp.configure()
+
+    // Register for remote notifications
+    UNUserNotificationCenter.current().delegate = self
+    application.registerForRemoteNotifications()
+
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  // 3. Add this method to handle the URL redirect after Google Login
+  // Handle the URL redirect after Google Login
   override func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
     return GIDSignIn.sharedInstance.handle(url)
   }

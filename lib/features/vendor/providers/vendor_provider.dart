@@ -11,7 +11,7 @@ export '../../../shared/models/order_model.dart' show OrderModel, OrderItemModel
 
 import '../../../shared/models/user_model.dart' show VendorProfileModel;
 import '../../../shared/models/listing_model.dart' show ListingModel;
-import '../../../shared/models/order_model.dart' show OrderModel, OrderItemModel, ShippingAddressInfo;
+import '../../../shared/models/order_model.dart' show OrderModel, ShippingAddressInfo;
 import '../../../shared/models/category_model.dart' show CategoryModel;
 import '../../../core/constants/app_constants.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -767,6 +767,7 @@ class CreateListingNotifier extends StateNotifier<CreateListingState> {
     List<Map<String, dynamic>>? variations, // Product variants (color/size)
     double? taxAmount,
     String? taxDescription,
+    Map<String, String>? attributes,
   }) async {
     print('🔄 Creating new listing: $title');
     state = state.copyWith(isLoading: true, error: null);
@@ -786,6 +787,13 @@ class CreateListingNotifier extends StateNotifier<CreateListingState> {
         if (taxAmount != null) 'tax_amount': taxAmount.toString(),
         if (taxDescription != null && taxDescription.isNotEmpty) 'tax_description': taxDescription,
       });
+
+      // Add attributes
+      if (attributes != null) {
+        for (final entry in attributes.entries) {
+          formData.fields.add(MapEntry('attributes[${entry.key}]', entry.value));
+        }
+      }
 
       // Add images
       for (int i = 0; i < images.length; i++) {
@@ -875,6 +883,7 @@ class CreateListingNotifier extends StateNotifier<CreateListingState> {
     List<int>? deleteImageIds,
     double? taxAmount,
     String? taxDescription,
+    Map<String, String>? attributes,
   }) async {
     print('🔄 Updating listing $listingId');
     state = state.copyWith(isLoading: true, error: null);
@@ -894,6 +903,13 @@ class CreateListingNotifier extends StateNotifier<CreateListingState> {
         if (taxAmount != null) 'tax_amount': taxAmount.toString(),
         if (taxDescription != null) 'tax_description': taxDescription,
       });
+
+      // Add attributes
+      if (attributes != null) {
+        for (final entry in attributes.entries) {
+          formData.fields.add(MapEntry('attributes[${entry.key}]', entry.value));
+        }
+      }
 
       // Add new images if any
       if (newImages != null) {

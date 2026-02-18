@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../notifications/providers/notification_provider.dart';
 
 const String _playStoreUrl = 'https://play.google.com/store/apps/details?id=com.bebamart.app';
 
@@ -18,8 +19,13 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _notificationsEnabled = true;
-  bool _emailNotifications = true;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(notificationPreferencesProvider.notifier).loadPreferences();
+    });
+  }
 
   void _showChangePasswordDialog() {
     final currentPasswordController = TextEditingController();
@@ -177,6 +183,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
+    final prefs = ref.watch(notificationPreferencesProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -206,21 +213,77 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Notifications Section
+          // Notifications Section - persisted to backend
           _buildSectionHeader('Notifications'),
           _buildSwitchTile(
             icon: Icons.notifications_outlined,
             title: 'Push Notifications',
             subtitle: 'Receive order updates and promotions',
-            value: _notificationsEnabled,
-            onChanged: (value) => setState(() => _notificationsEnabled = value),
+            value: prefs?.pushEnabled ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('push_enabled', value);
+            },
           ),
           _buildSwitchTile(
             icon: Icons.email_outlined,
             title: 'Email Notifications',
             subtitle: 'Receive updates via email',
-            value: _emailNotifications,
-            onChanged: (value) => setState(() => _emailNotifications = value),
+            value: prefs?.emailEnabled ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('email_enabled', value);
+            },
+          ),
+          _buildSwitchTile(
+            icon: Icons.local_shipping_outlined,
+            title: 'Order Updates',
+            subtitle: 'Status changes for your orders',
+            value: prefs?.orderUpdates ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('order_updates', value);
+            },
+          ),
+          _buildSwitchTile(
+            icon: Icons.campaign_outlined,
+            title: 'Promotions & Deals',
+            subtitle: 'Sales, discounts, and special offers',
+            value: prefs?.promotions ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('promotions', value);
+            },
+          ),
+          _buildSwitchTile(
+            icon: Icons.recommend_outlined,
+            title: 'Recommendations',
+            subtitle: 'Products you might like',
+            value: prefs?.recommendations ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('recommendations', value);
+            },
+          ),
+          _buildSwitchTile(
+            icon: Icons.trending_down,
+            title: 'Price Drop Alerts',
+            subtitle: 'When wishlisted items go on sale',
+            value: prefs?.priceDrops ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('price_drops', value);
+            },
+          ),
+          _buildSwitchTile(
+            icon: Icons.shopping_cart_outlined,
+            title: 'Cart Reminders',
+            subtitle: 'Reminders about items in your cart',
+            value: prefs?.cartReminders ?? true,
+            onChanged: (value) {
+              ref.read(notificationPreferencesProvider.notifier)
+                  .updateField('cart_reminders', value);
+            },
           ),
           const SizedBox(height: 16),
 

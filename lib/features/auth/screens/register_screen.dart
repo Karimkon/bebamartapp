@@ -38,10 +38,78 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     scopes: ['email', 'profile'],
   );
 
-  Future<void> _pickProfileImage() async {
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Text(
+              'Profile Photo',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.camera_alt, color: AppColors.primary),
+              ),
+              title: const Text('Take Photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickProfileImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.photo_library, color: AppColors.accent),
+              ),
+              title: const Text('Choose from Gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickProfileImage(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickProfileImage(ImageSource source) async {
     try {
       final croppedFile = await ImageCropUtils.pickAndCropImage(
-        source: ImageSource.gallery,
+        source: source,
         cropStyle: CropStyle.profilePicture,
         context: context,
         maxWidth: 512,
@@ -250,7 +318,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   // Profile Picture Picker for Vendors
                   Center(
                     child: GestureDetector(
-                      onTap: _pickProfileImage,
+                      onTap: _showImagePickerOptions,
                       child: Stack(
                         children: [
                           CircleAvatar(
