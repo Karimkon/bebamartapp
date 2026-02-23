@@ -17,7 +17,7 @@ plugins {
 
 android {
     namespace = "com.bebamart.app" // Updated to match your applicationId
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     lint {

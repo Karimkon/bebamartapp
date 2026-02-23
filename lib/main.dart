@@ -48,13 +48,46 @@ void main() async {
   );
 }
 
-class BebaMartApp extends ConsumerWidget {
+class BebaMartApp extends ConsumerStatefulWidget {
   const BebaMartApp({super.key});
-  
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BebaMartApp> createState() => _BebaMartAppState();
+}
+
+class _BebaMartAppState extends ConsumerState<BebaMartApp> {
+  late final void Function(Map<String, dynamic>) _notificationTapHandler;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationTapHandler = (data) {
+      final route = data['route'] as String?;
+      if (route == null || route.isEmpty) return;
+      // Use postFrameCallback so navigation fires after the current frame
+      // and the router is guaranteed to be in a stable state
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        try {
+          ref.read(routerProvider).push(route);
+        } catch (_) {
+          ref.read(routerProvider).go(route);
+        }
+      });
+    };
+    NotificationService.addTapListener(_notificationTapHandler);
+  }
+
+  @override
+  void dispose() {
+    NotificationService.removeTapListener(_notificationTapHandler);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
-    
+
     return MaterialApp.router(
       title: 'BebaMart',
       debugShowCheckedModeBanner: false,

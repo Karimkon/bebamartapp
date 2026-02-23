@@ -29,3 +29,9 @@ ios/Flutter/Generated.xcconfig
 # OS
 .DS_Store
 Thumbs.db
+
+# JVM crash logs
+hs_err_pid*.log
+replay_pid*.log
+android/hs_err_pid*.log
+android/replay_pid*.log

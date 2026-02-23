@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../chat/providers/chat_provider.dart';
+import '../providers/service_request_provider.dart';
 
 class VendorShell extends ConsumerWidget {
   final Widget child;
@@ -28,9 +29,10 @@ class VendorBottomNav extends ConsumerWidget {
     if (location.startsWith('/vendor/products')) return 1;
     if (location.startsWith('/vendor/orders')) return 2;
     if (location.startsWith('/vendor/messages')) return 3;
+    if (location.startsWith('/vendor/service-requests')) return 4;
     if (location.startsWith('/vendor/profile') ||
         location.startsWith('/vendor/analytics') ||
-        location.startsWith('/vendor/wallet')) return 4;
+        location.startsWith('/vendor/wallet')) return 5;
     return 0;
   }
 
@@ -49,6 +51,9 @@ class VendorBottomNav extends ConsumerWidget {
         context.go('/vendor/messages');
         break;
       case 4:
+        context.go('/vendor/service-requests');
+        break;
+      case 5:
         context.go('/vendor/profile');
         break;
     }
@@ -59,6 +64,8 @@ class VendorBottomNav extends ConsumerWidget {
     final selectedIndex = _calculateSelectedIndex(context);
     final unreadCountAsync = ref.watch(unreadCountProvider);
     final unreadCount = unreadCountAsync.valueOrNull ?? 0;
+    final pendingRequestsAsync = ref.watch(vendorPendingRequestsCountProvider);
+    final pendingRequests = pendingRequestsAsync.valueOrNull ?? 0;
 
     return Container(
       decoration: BoxDecoration(
@@ -108,11 +115,19 @@ class VendorBottomNav extends ConsumerWidget {
                 onTap: () => _onItemTapped(context, 3),
               ),
               _NavItem(
+                icon: Icons.assignment_outlined,
+                activeIcon: Icons.assignment,
+                label: 'Requests',
+                isSelected: selectedIndex == 4,
+                badge: pendingRequests,
+                onTap: () => _onItemTapped(context, 4),
+              ),
+              _NavItem(
                 icon: Icons.person_outline,
                 activeIcon: Icons.person,
                 label: 'Profile',
-                isSelected: selectedIndex == 4,
-                onTap: () => _onItemTapped(context, 4),
+                isSelected: selectedIndex == 5,
+                onTap: () => _onItemTapped(context, 5),
               ),
             ],
           ),

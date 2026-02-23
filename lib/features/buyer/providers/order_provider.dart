@@ -407,9 +407,21 @@ final orderDetailProvider = FutureProvider.family<OrderModel?, int>((ref, orderI
       }
     }
     return null;
+  } on DioException catch (e) {
+    print('❌ Error loading order detail: ${e.response?.statusCode} ${e.message}');
+    if (e.response?.statusCode == 401) {
+      throw Exception('Your session has expired. Please log in again.');
+    } else if (e.response?.statusCode == 404) {
+      throw Exception('Order not found.');
+    } else if (e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
+      throw Exception('No internet connection. Please check your network.');
+    }
+    throw Exception(e.response?.data?['message'] ?? 'Failed to load order details.');
   } catch (e) {
     print('❌ Error loading order detail: $e');
-    return null;
+    throw Exception('Failed to load order details. Please try again.');
   }
 });
 

@@ -169,9 +169,12 @@ class NotificationService {
   void _handleNotificationTap(RemoteMessage message) {
     final data = message.data;
     if (data.isNotEmpty) {
-      for (final listener in _tapListeners) {
-        listener(data);
-      }
+      // Delay ensures app is fully foregrounded and router is ready before navigating
+      Future.delayed(const Duration(milliseconds: 500), () {
+        for (final listener in _tapListeners) {
+          listener(data);
+        }
+      });
     }
   }
 
@@ -179,9 +182,12 @@ class NotificationService {
     if (response.payload != null) {
       try {
         final data = jsonDecode(response.payload!) as Map<String, dynamic>;
-        for (final listener in _tapListeners) {
-          listener(data);
-        }
+        // Delay ensures the local notification tap navigates after the frame settles
+        Future.delayed(const Duration(milliseconds: 300), () {
+          for (final listener in _tapListeners) {
+            listener(data);
+          }
+        });
       } catch (e) {
         print('Error parsing notification payload: $e');
       }

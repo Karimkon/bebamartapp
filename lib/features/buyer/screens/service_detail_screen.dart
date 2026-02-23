@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../providers/service_category_provider.dart';
 import '../../../shared/models/service_model.dart';
-import '../../chat/providers/chat_provider.dart';
+import 'service_request_form_screen.dart';
 
 class ServiceDetailScreen extends ConsumerWidget {
   final String slug;
@@ -132,32 +132,14 @@ class ServiceDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _handleContactVendor(BuildContext context, WidgetRef ref, VendorServiceModel service) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ServiceRequestFormScreen(
+          serviceId: service.id,
+          service: service,
+        ),
+      ),
     );
-
-    try {
-      final conversationId = await ref.read(conversationsProvider.notifier).startConversation(
-        vendorProfileId: service.vendor.id,
-        // For services/jobs, we might not have a listing_id in the same sense, 
-        // but the backend handles it.
-      );
-
-      if (context.mounted) {
-        Navigator.pop(context); // Close loading dialog
-        if (conversationId != null) {
-          context.push('/chat/$conversationId');
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
-        );
-      }
-    }
   }
 }

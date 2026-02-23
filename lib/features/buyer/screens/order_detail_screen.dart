@@ -73,7 +73,10 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           return _buildOrderDetail(order);
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _buildErrorState(error.toString()),
+        error: (error, _) {
+          final message = error.toString().replaceFirst('Exception: ', '');
+          return _buildErrorState(message);
+        },
       ),
     );
   }

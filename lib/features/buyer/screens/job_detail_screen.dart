@@ -1,11 +1,12 @@
 // lib/features/buyer/screens/job_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/constants/app_constants.dart';
 import '../providers/service_category_provider.dart';
 import '../../../shared/models/job_model.dart';
-import '../../chat/providers/chat_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class JobDetailScreen extends ConsumerWidget {
   final String slug;
@@ -24,8 +25,11 @@ class JobDetailScreen extends ConsumerWidget {
       ),
       body: jobsAsync.when(
         data: (jobs) {
-          final job = jobs.firstWhere((j) => j.slug == slug, orElse: () => throw Exception('Job not found'));
-          
+          final job = jobs.firstWhere(
+            (j) => j.slug == slug,
+            orElse: () => throw Exception('Job not found'),
+          );
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -74,10 +78,7 @@ class JobDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 32),
                 const Text(
                   'Job Description',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -88,10 +89,7 @@ class JobDetailScreen extends ConsumerWidget {
                 if (job.requirements != null && job.requirements!.isNotEmpty) ...[
                   const Text(
                     'Requirements',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   ...job.requirements!.map((r) => BulletItem(r)),
@@ -106,7 +104,10 @@ class JobDetailScreen extends ConsumerWidget {
       ),
       bottomNavigationBar: jobsAsync.maybeWhen(
         data: (jobs) {
-          final job = jobs.firstWhere((j) => j.slug == slug, orElse: () => jobs.first);
+          final job = jobs.firstWhere(
+            (j) => j.slug == slug,
+            orElse: () => jobs.first,
+          );
           return _buildBottomBar(context, ref, job);
         },
         orElse: () => const SizedBox.shrink(),
@@ -150,14 +151,16 @@ class JobDetailScreen extends ConsumerWidget {
         child: Row(
           children: [
             Expanded(
-              child: ElevatedButton(
-                onPressed: () => _handleContactEmployer(context, ref, job),
+              child: ElevatedButton.icon(
+                onPressed: () => _showApplicationForm(context, ref, job),
+                icon: const Icon(Icons.send_outlined),
+                label: const Text('Apply for this Job'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Apply / Contact Employer'),
               ),
             ),
           ],
@@ -166,32 +169,344 @@ class JobDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleContactEmployer(BuildContext context, WidgetRef ref, JobListingModel job) async {
-    showDialog(
+  void _showApplicationForm(BuildContext context, WidgetRef ref, JobListingModel job) {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => JobApplicationSheet(
+        job: job,
+        initialName: user?.name ?? '',
+        initialEmail: user?.email ?? '',
+        initialPhone: user?.phone ?? '',
+      ),
     );
+  }
+}
+
+// ==========================================
+// JOB APPLICATION BOTTOM SHEET
+// ==========================================
+
+class JobApplicationSheet extends ConsumerStatefulWidget {
+  final JobListingModel job;
+  final String initialName;
+  final String initialEmail;
+  final String initialPhone;
+
+  const JobApplicationSheet({
+    super.key,
+    required this.job,
+    required this.initialName,
+    required this.initialEmail,
+    required this.initialPhone,
+  });
+
+  @override
+  ConsumerState<JobApplicationSheet> createState() => _JobApplicationSheetState();
+}
+
+class _JobApplicationSheetState extends ConsumerState<JobApplicationSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _phoneCtrl;
+  final _salaryCtrl = TextEditingController();
+  final _coverLetterCtrl = TextEditingController();
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.initialName);
+    _emailCtrl = TextEditingController(text: widget.initialEmail);
+    _phoneCtrl = TextEditingController(text: widget.initialPhone);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _salaryCtrl.dispose();
+    _coverLetterCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
 
     try {
-      final conversationId = await ref.read(conversationsProvider.notifier).startConversation(
-        vendorProfileId: job.vendor.id,
+      final api = ref.read(apiClientProvider);
+      final response = await api.post(
+        ApiEndpoints.jobApply(widget.job.slug),
+        data: {
+          'applicant_name': _nameCtrl.text.trim(),
+          'applicant_email': _emailCtrl.text.trim(),
+          'applicant_phone': _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+          'expected_salary': _salaryCtrl.text.trim().isEmpty ? null : double.tryParse(_salaryCtrl.text.trim()),
+          'cover_letter': _coverLetterCtrl.text.trim().isEmpty ? null : _coverLetterCtrl.text.trim(),
+        },
       );
 
-      if (context.mounted) {
-        Navigator.pop(context); // Close loading dialog
-        if (conversationId != null) {
-          context.push('/chat/$conversationId');
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context); // Close loading dialog
+      if (!mounted) return;
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text(response.data['message'] ?? 'Application submitted successfully!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.data['message'] ?? 'Failed to submit application.'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      String message = 'Failed to submit application.';
+      if (e.toString().contains('already applied')) {
+        message = 'You have already applied for this job.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.92,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 4),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Apply for this Job',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.job.title,
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 20),
+              // Form
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  padding: EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildField(
+                          label: 'Full Name *',
+                          controller: _nameCtrl,
+                          hint: 'Your full name',
+                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Name is required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildField(
+                          label: 'Email *',
+                          controller: _emailCtrl,
+                          hint: 'your@email.com',
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Email is required';
+                            if (!v.contains('@')) return 'Enter a valid email';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildField(
+                          label: 'Phone',
+                          controller: _phoneCtrl,
+                          hint: '07X XXX XXXX',
+                          keyboardType: TextInputType.phone,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildField(
+                          label: 'Expected Salary (UGX)',
+                          controller: _salaryCtrl,
+                          hint: 'e.g. 1000000',
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildField(
+                          label: 'Cover Letter',
+                          controller: _coverLetterCtrl,
+                          hint: 'Tell us why you\'re interested in this role...',
+                          maxLines: 5,
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton.icon(
+                            onPressed: _isSubmitting ? null : _submit,
+                            icon: _isSubmitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.send_outlined),
+                            label: Text(
+                              _isSubmitting ? 'Submitting...' : 'Submit Application',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildField({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          validator: validator,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: AppColors.textTertiary),
+            filled: true,
+            fillColor: const Color(0xFFF5F6FA),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.error),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: maxLines > 1 ? 14 : 12,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

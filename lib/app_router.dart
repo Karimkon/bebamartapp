@@ -57,6 +57,10 @@ import 'features/chat/screens/chat_detail_screen.dart';
 // Notifications
 import 'features/notifications/screens/notification_inbox_screen.dart';
 
+// Service Requests
+import 'features/vendor/screens/vendor_service_requests_screen.dart';
+import 'features/vendor/screens/vendor_service_request_detail_screen.dart';
+
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
 
@@ -92,6 +96,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         '/vendor/onboarding',
         '/vendor/products/create',
         '/vendor/services/create',
+        '/vendor/service-requests',
         '/chat',
       ];
 
@@ -410,6 +415,12 @@ final routerProvider = Provider<GoRouter>((ref) {
               child: VendorProfileScreen(),
             ),
           ),
+          GoRoute(
+            path: '/vendor/service-requests',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: VendorServiceRequestsScreen(),
+            ),
+          ),
         ],
       ),
 
@@ -451,6 +462,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/vendor/subscription',
         builder: (context, state) => const SubscriptionScreen(),
+      ),
+      GoRoute(
+        path: '/vendor/service-requests/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return VendorServiceRequestDetailScreen(requestId: id);
+        },
       ),
 
       // ==================== CHAT ROUTES ====================
