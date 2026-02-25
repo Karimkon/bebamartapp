@@ -62,10 +62,8 @@ class _BebaMartAppState extends ConsumerState<BebaMartApp> {
   void initState() {
     super.initState();
     _notificationTapHandler = (data) {
-      final route = data['route'] as String?;
-      if (route == null || route.isEmpty) return;
-      // Use postFrameCallback so navigation fires after the current frame
-      // and the router is guaranteed to be in a stable state
+      // Resolve route: use explicit 'route' key first, then fall back by type
+      final String route = _resolveNotificationRoute(data);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         try {
@@ -76,6 +74,26 @@ class _BebaMartAppState extends ConsumerState<BebaMartApp> {
       });
     };
     NotificationService.addTapListener(_notificationTapHandler);
+  }
+
+  /// Determine where to navigate when a notification is tapped.
+  /// Uses the explicit 'route' key from notification data if present,
+  /// otherwise maps notification 'type' to a sensible screen.
+  String _resolveNotificationRoute(Map<String, dynamic> data) {
+    final explicit = data['route'] as String?;
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+
+    // Type-based fallbacks for manually sent or legacy notifications
+    final type = data['type'] as String? ?? '';
+    return switch (type) {
+      'cart_reminder'  => '/cart',
+      'order_update'   => '/orders',
+      'vendor_order'   => '/vendor/orders',
+      'vendor_payout'  => '/vendor/wallet',
+      'vendor_review'  => '/vendor/dashboard',
+      'price_drop'     => '/wishlist',
+      _                => '/home',
+    };
   }
 
   @override

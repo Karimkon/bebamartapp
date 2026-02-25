@@ -50,6 +50,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
   
   AuthNotifier(this._storage, this._api, this._ref) : super(const AuthState()) {
     _checkAuthStatus();
+    // When FCM rotates the device token automatically, re-register it with
+    // the backend immediately so notifications are never interrupted.
+    NotificationService.setTokenRefreshCallback((newToken) async {
+      final hasToken = await _storage.hasToken();
+      if (!hasToken) return; // User not logged in, nothing to register
+      try {
+        final notifService = _ref.read(notificationServiceProvider);
+        await _api.post(ApiEndpoints.deviceToken, data: {
+          'token': newToken,
+          'platform': notifService.platform,
+          'device_name': notifService.deviceName,
+        });
+        print('📱 FCM token refreshed and re-registered with backend');
+      } catch (e) {
+        print('⚠️ FCM token refresh registration failed: $e');
+      }
+    });
   }
   
   Future<void> _checkAuthStatus() async {
