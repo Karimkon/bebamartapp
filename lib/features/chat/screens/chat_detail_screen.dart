@@ -1,13 +1,15 @@
 // lib/features/chat/screens/chat_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../providers/chat_provider.dart';
 
 class ChatDetailScreen extends ConsumerStatefulWidget {
   final int conversationId;
-  const ChatDetailScreen({super.key, required this.conversationId});
+  final String? initialMessage;
+  const ChatDetailScreen({super.key, required this.conversationId, this.initialMessage});
 
   @override
   ConsumerState<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -16,6 +18,14 @@ class ChatDetailScreen extends ConsumerStatefulWidget {
 class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
+      _messageController.text = widget.initialMessage!;
+    }
+  }
 
   @override
   void dispose() {
@@ -117,6 +127,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       ),
       body: Column(
         children: [
+          if (state.conversation?.listing != null) _buildProductBanner(state.conversation!.listing!),
           Expanded(child: _buildMessageList(state)),
           // Safety warning banner
           Container(
@@ -138,6 +149,50 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildProductBanner(ListingPreview listing) {
+    final imageUrl = listing.image != null ? _buildImageUrl(listing.image!) : null;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: imageUrl != null
+                ? Image.network(imageUrl, width: 52, height: 52, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _placeholderImage())
+                : _placeholderImage(),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Enquiring about:', style: TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+                Text(listing.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                if (listing.price != null)
+                  Text('UGX ${NumberFormat('#,##0', 'en_US').format(listing.price)}',
+                      style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+              ],
+            ),
+          ),
+          Icon(Icons.shopping_bag_outlined, color: AppColors.primary.withValues(alpha: 0.6), size: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholderImage() {
+    return Container(width: 52, height: 52, color: AppColors.background,
+        child: Icon(Icons.image_outlined, color: AppColors.textTertiary, size: 28));
   }
 
   Widget _buildMessageList(ChatState state) {
