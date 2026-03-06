@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/listing_model.dart';
@@ -598,60 +599,104 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   Widget _buildVendorCard(ListingModel listing) {
+    final vendor = listing.vendor!;
+    final phone = vendor.phone;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: AppColors.primary,
-            child: Text(
-              listing.vendor!.businessName.isNotEmpty ? listing.vendor!.businessName.substring(0, 1).toUpperCase() : 'V',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        listing.vendor!.businessName,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
+          Row(
+            children: [
+              // Tappable avatar → vendor store
+              GestureDetector(
+                onTap: () => context.push('/vendor-store/${vendor.id}'),
+                child: CircleAvatar(
+                  radius: 22,
+                  backgroundColor: AppColors.primary,
+                  backgroundImage: (vendor.logo != null && vendor.logo!.isNotEmpty)
+                      ? NetworkImage(vendor.logo!.startsWith('http')
+                          ? vendor.logo!
+                          : '${AppConstants.baseUrl}/storage/${vendor.logo}')
+                      : null,
+                  child: (vendor.logo == null || vendor.logo!.isEmpty)
+                      ? Text(
+                          vendor.businessName.isNotEmpty ? vendor.businessName[0].toUpperCase() : 'V',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => context.push('/vendor-store/${vendor.id}'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              vendor.businessName,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (vendor.isVerified) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.verified, size: 18, color: Color(0xFF3B82F6)),
+                          ],
+                        ],
                       ),
-                    ),
-                    if (listing.vendor!.isVerified) ...[
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.verified,
-                        size: 18,
-                        color: Color(0xFF3B82F6), // blue-500
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(Icons.store_outlined, size: 12, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Text(vendor.durationBadge, style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+                        ],
                       ),
+                      if (vendor.location.isNotEmpty)
+                        Row(children: [
+                          Icon(Icons.location_on_outlined, size: 12, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Flexible(child: Text(vendor.location,
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                              overflow: TextOverflow.ellipsis)),
+                        ]),
                     ],
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(Icons.person_outline, size: 12, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(listing.vendor!.durationBadge, style: TextStyle(color: Colors.grey[600], fontSize: 11)),
-                  ],
-                ),
-                if (listing.vendor!.location.isNotEmpty)
-                  Text(listing.vendor!.location, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-              ],
+              ),
+              TextButton(
+                onPressed: () => _handleContactVendor(listing),
+                child: const Text('Chat'),
+              ),
+            ],
+          ),
+          // Contact info row
+          if (phone != null && phone.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () async {
+                final uri = Uri.parse('tel:$phone');
+                if (await canLaunchUrl(uri)) launchUrl(uri);
+              },
+              child: Row(children: [
+                Icon(Icons.phone_outlined, size: 16, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Text(phone,
+                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w500, fontSize: 13)),
+                const SizedBox(width: 6),
+                Text('(Tap to call)', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+              ]),
             ),
-          ),
-          TextButton(
-            onPressed: () => _handleContactVendor(listing),
-            child: const Text('Chat'),
-          ),
+          ],
         ],
       ),
     );
@@ -1002,7 +1047,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         Navigator.pop(context);
 
         if (conversationId != null) {
-          context.push('/chat/$conversationId');
+          context.push('/chat/$conversationId',
+              extra: 'Hi, I am interested in "${listing.title}". Is it still available?');
         } else {
           ScaffoldMessenger.of(context)
             ..clearSnackBars()

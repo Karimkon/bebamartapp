@@ -34,6 +34,7 @@ import 'features/buyer/screens/services_screen.dart';
 import 'features/buyer/screens/service_detail_screen.dart';
 import 'features/buyer/screens/jobs_screen.dart';
 import 'features/buyer/screens/job_detail_screen.dart';
+import 'features/buyer/screens/vendor_store_screen.dart';
 
 // Vendor
 import 'features/vendor/screens/vendor_shell.dart';
@@ -480,7 +481,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/chat/:id',
         builder: (context, state) {
           final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
-          return ChatDetailScreen(conversationId: id);
+          final initialMessage = state.extra as String?;
+          return ChatDetailScreen(conversationId: id, initialMessage: initialMessage);
+        },
+      ),
+      GoRoute(
+        path: '/vendor-store/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return VendorStoreScreen(vendorId: id);
         },
       ),
     ],

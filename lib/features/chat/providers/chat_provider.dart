@@ -54,18 +54,21 @@ class ListingPreview {
   final int id;
   final String title;
   final String? image;
+  final double? price;
 
   ListingPreview({
     required this.id,
     required this.title,
     this.image,
+    this.price,
   });
 
   factory ListingPreview.fromJson(Map<String, dynamic> json) {
     return ListingPreview(
-      id: json['id'] as int,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       title: json['title'] as String? ?? '',
       image: json['image'] as String?,
+      price: json['price'] is num ? (json['price'] as num).toDouble() : double.tryParse(json['price']?.toString() ?? ''),
     );
   }
 }
@@ -138,6 +141,7 @@ class ConversationDetail {
   final String? participantAvatar;
   final String? subject;
   final int? listingId;
+  final ListingPreview? listing;
 
   ConversationDetail({
     required this.id,
@@ -145,6 +149,7 @@ class ConversationDetail {
     this.participantAvatar,
     this.subject,
     this.listingId,
+    this.listing,
   });
 
   factory ConversationDetail.fromJson(Map<String, dynamic> json) {
@@ -154,6 +159,9 @@ class ConversationDetail {
       participantAvatar: json['participant_avatar'] as String?,
       subject: json['subject'] as String?,
       listingId: json['listing_id'] as int?,
+      listing: json['listing'] != null
+          ? ListingPreview.fromJson(json['listing'])
+          : null,
     );
   }
 }
