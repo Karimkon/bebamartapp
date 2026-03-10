@@ -92,6 +92,7 @@ class _BebaMartAppState extends ConsumerState<BebaMartApp> {
       'vendor_payout'  => '/vendor/wallet',
       'vendor_review'  => '/vendor/dashboard',
       'price_drop'     => '/wishlist',
+      'admin_message'  => '/notifications',
       _                => '/home',
     };
   }

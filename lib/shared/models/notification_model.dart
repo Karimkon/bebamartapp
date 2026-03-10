@@ -59,6 +59,7 @@ class NotificationModel {
         'vendor_review' => Icons.star_outlined,
         'vendor_payout' => Icons.payments_outlined,
         'vendor_tip' => Icons.lightbulb_outlined,
+        'admin_message' => Icons.admin_panel_settings_outlined,
         _ => Icons.notifications_outlined,
       };
 
@@ -73,6 +74,7 @@ class NotificationModel {
         'vendor_review' => const Color(0xFFF59E0B),
         'vendor_payout' => const Color(0xFF10B981),
         'vendor_tip' => const Color(0xFF06B6D4),
+        'admin_message' => const Color(0xFFDC2626),
         _ => const Color(0xFF6366F1),
       };
 
