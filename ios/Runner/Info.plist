@@ -52,12 +52,12 @@
 				<string>Editor</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>com.googleusercontent.apps.11597583106-c72bfr19le2r7ttb0ubjvcka0ulg511c</string>
+					<string>com.googleusercontent.apps.1088306257730-1u0sqibd70lvg0io6p8ftamvhd6q2v1j</string>
 				</array>
 			</dict>
 		</array>
 		<key>GIDClientID</key>
-		<string>11597583106-c72bfr19le2r7ttb0ubjvcka0ulg511c.apps.googleusercontent.com</string>
+		<string>1088306257730-1u0sqibd70lvg0io6p8ftamvhd6q2v1j.apps.googleusercontent.com</string>
 		<!-- URL Schemes for url_launcher (Required to open external links) -->
 		<key>LSApplicationQueriesSchemes</key>
 		<array>

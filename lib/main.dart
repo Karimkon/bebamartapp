@@ -74,6 +74,12 @@ class _BebaMartAppState extends ConsumerState<BebaMartApp> {
       });
     };
     NotificationService.addTapListener(_notificationTapHandler);
+
+    // Dispatch any notification that opened the app from terminated state.
+    // Must be called AFTER addTapListener so the handler is ready.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(notificationServiceProvider).dispatchPendingTap();
+    });
   }
 
   /// Determine where to navigate when a notification is tapped.

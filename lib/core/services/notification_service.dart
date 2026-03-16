@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart' show Color;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_app_badger/flutter_app_badger.dart';
@@ -11,16 +12,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 // Top-level background handler (must be top-level function, not a method)
+// IMPORTANT: This runs in a separate Dart isolate on Android — Firebase MUST be
+// re-initialized here or any background processing will crash.
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
   // OS handles displaying the notification automatically in background
-  // We just need this registered so background messages are received
 }
 
 class NotificationService {
   late final FirebaseMessaging _messaging;
   late final FlutterLocalNotificationsPlugin _localNotifications;
   String? _fcmToken;
+  RemoteMessage? _pendingInitialMessage;
 
   // Stream controller for notification taps (used for navigation)
   static final List<void Function(Map<String, dynamic>)> _tapListeners = [];
@@ -65,13 +69,11 @@ class NotificationService {
     // Handle notification tap when app was in background
     FirebaseMessaging.onMessageOpenedApp.listen(instance._handleNotificationTap);
 
-    // Check if app was opened from a terminated state via notification
+    // Check if app was opened from a terminated state via notification.
+    // Store it so we can dispatch it AFTER listeners register (via dispatchPendingTap).
     final initialMessage = await instance._messaging.getInitialMessage();
     if (initialMessage != null) {
-      // Delay to let the app fully initialize before navigating
-      Future.delayed(const Duration(seconds: 2), () {
-        instance._handleNotificationTap(initialMessage);
-      });
+      instance._pendingInitialMessage = initialMessage;
     }
 
     return instance;
@@ -83,6 +85,18 @@ class NotificationService {
   Future<String?> getToken() async {
     _fcmToken ??= await _messaging.getToken();
     return _fcmToken;
+  }
+
+  /// Dispatches the initial message (from terminated state) after listeners are registered.
+  /// Call this from your root widget's initState() AFTER adding tap listeners.
+  void dispatchPendingTap() {
+    if (_pendingInitialMessage != null) {
+      final message = _pendingInitialMessage!;
+      _pendingInitialMessage = null;
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _handleNotificationTap(message);
+      });
+    }
   }
 
   /// Platform name for device token registration
@@ -246,15 +260,22 @@ class NotificationService {
   }
 
   void _handleNotificationTap(RemoteMessage message) {
-    final data = message.data;
-    if (data.isNotEmpty) {
-      // Delay ensures app is fully foregrounded and router is ready before navigating
-      Future.delayed(const Duration(milliseconds: 500), () {
-        for (final listener in _tapListeners) {
-          listener(data);
-        }
-      });
+    // Always dispatch tap — even if data is empty, listeners will fall back to '/home'.
+    // This ensures a tapped notification ALWAYS opens the app to a sensible screen
+    // rather than silently disappearing.
+    final data = Map<String, dynamic>.from(message.data);
+
+    // If no explicit data, add type from notification so the router can still route by type
+    if (data.isEmpty && message.notification != null) {
+      data['type'] = 'general';
     }
+
+    // Delay ensures app is fully foregrounded and router is ready
+    Future.delayed(const Duration(milliseconds: 500), () {
+      for (final listener in _tapListeners) {
+        listener(data);
+      }
+    });
   }
 
   void _onLocalNotificationTap(NotificationResponse response) {
