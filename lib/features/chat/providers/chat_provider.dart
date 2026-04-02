@@ -313,6 +313,22 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
     return null;
   }
 
+  /// Open or continue a support conversation with BebaMart
+  Future<int?> startSupportConversation() async {
+    try {
+      final response = await _api.post('/api/chat/support');
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        await loadConversations();
+        return response.data['conversation_id'] as int?;
+      } else {
+        print('❌ Support chat failed: ${response.data['message']}');
+      }
+    } catch (e) {
+      print('❌ Error starting support conversation: $e');
+    }
+    return null;
+  }
+
   /// Vendor starts conversation with a buyer (for order inquiries)
   Future<int?> startConversationWithBuyer({
     required int buyerId,

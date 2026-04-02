@@ -1,11 +1,21 @@
 // lib/features/buyer/screens/help_support_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../chat/providers/chat_provider.dart';
 
-class HelpSupportScreen extends StatelessWidget {
+class HelpSupportScreen extends ConsumerStatefulWidget {
   const HelpSupportScreen({super.key});
+
+  @override
+  ConsumerState<HelpSupportScreen> createState() => _HelpSupportScreenState();
+}
+
+class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
+  bool _isStartingChat = false;
 
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
@@ -29,6 +39,27 @@ class HelpSupportScreen extends StatelessWidget {
     final uri = Uri(scheme: 'tel', path: AppConstants.supportPhone);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
+    }
+  }
+
+  Future<void> _startSupportChat() async {
+    setState(() => _isStartingChat = true);
+    try {
+      final conversationId = await ref
+          .read(conversationsProvider.notifier)
+          .startSupportConversation();
+      if (!mounted) return;
+      if (conversationId != null) {
+        context.push('/chat/$conversationId');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Support is currently unavailable. Please try email or phone.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isStartingChat = false);
     }
   }
 
@@ -60,14 +91,10 @@ class HelpSupportScreen extends StatelessWidget {
             onTap: _launchPhone,
           ),
           _buildContactCard(
-            icon: Icons.chat_outlined,
+            icon: _isStartingChat ? Icons.hourglass_top_outlined : Icons.chat_outlined,
             title: 'Live Chat',
-            subtitle: 'Chat with our support team',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Live chat coming soon')),
-              );
-            },
+            subtitle: _isStartingChat ? 'Connecting...' : 'Chat with our support team',
+            onTap: _isStartingChat ? () {} : _startSupportChat,
           ),
           const SizedBox(height: 24),
 
