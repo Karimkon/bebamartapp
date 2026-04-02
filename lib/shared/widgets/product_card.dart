@@ -15,6 +15,14 @@ class ProductCard extends StatelessWidget {
     this.onCartTap,
   });
   
+  Color _badgeColor(ListingModel listing) {
+    final badge = listing.vendorBadgeText?.toLowerCase() ?? '';
+    if (badge.contains('gold')) return const Color(0xFFD97706);    // amber-600
+    if (badge.contains('silver')) return const Color(0xFF6B7280);  // gray-500
+    if (badge.contains('bronze')) return const Color(0xFF92400E);  // amber-800
+    return const Color(0xFF6C63FF);                                 // brand purple
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -79,6 +87,28 @@ class ProductCard extends StatelessWidget {
                           ),
                   ),
                   
+                  // Subscription badge (Bronze / Silver / Gold)
+                  if (listing.vendorHasBadge || listing.isPromoted)
+                    Positioned(
+                      top: 4,
+                      left: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _badgeColor(listing),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          listing.vendorBadgeText ?? 'Promoted',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+
                   // Wishlist button
                   Positioned(
                     top: 4,

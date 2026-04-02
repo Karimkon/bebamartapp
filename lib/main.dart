@@ -92,14 +92,17 @@ class _BebaMartAppState extends ConsumerState<BebaMartApp> {
     // Type-based fallbacks for manually sent or legacy notifications
     final type = data['type'] as String? ?? '';
     return switch (type) {
-      'cart_reminder'  => '/cart',
-      'order_update'   => '/orders',
-      'vendor_order'   => '/vendor/orders',
-      'vendor_payout'  => '/vendor/wallet',
-      'vendor_review'  => '/vendor/dashboard',
-      'price_drop'     => '/wishlist',
-      'admin_message'  => '/notifications',
-      _                => '/home',
+      'cart_reminder'   => '/cart',
+      'order_update'    => '/orders',
+      'vendor_order'    => '/vendor/orders',
+      'vendor_payout'   => '/vendor/wallet',
+      'vendor_review'   => '/vendor/dashboard',
+      'vendor_approval' => '/vendor/dashboard',
+      'price_drop'      => '/wishlist',
+      'recommendation'  => '/home',
+      'promo'           => '/home',
+      'admin_message'   => '/notifications',
+      _                 => '/home',
     };
   }
 
